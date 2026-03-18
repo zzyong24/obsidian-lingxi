@@ -1,0 +1,16 @@
+# npm
+node_modules
+
+# Build sourcemaps
+*.js.map
+
+# Obsidian
+data.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
