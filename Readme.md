@@ -117,7 +117,7 @@ status: "active"
 
 2. 在 Vault 中创建插件目录并放入文件：
    ```
-   你的Vault/.obsidian/plugins/ai-chat/
+你的Vault/.obsidian/plugins/lingxi/
    ├── main.js
    ├── styles.css
    └── manifest.json
@@ -550,7 +550,7 @@ model_preference: text
 3. 安装 Remotely Save 并配置相同的 COS 连接信息
 4. 手动触发一次同步，所有笔记和插件设置都会同步过来
 
-> 💡 **提示**：灵犀插件的设置（包括 API Key）存储在 Vault 的 `.obsidian/plugins/ai-chat/data.json` 中，会跟随 Remotely Save 同步到所有设备。配置一次，多端可用。
+> 💡 **提示**：灵犀插件的设置（包括 API Key）存储在 Vault 的 `.obsidian/plugins/lingxi/data.json` 中，会跟随 Remotely Save 同步到所有设备。配置一次，多端可用。
 
 ### 同步注意事项
 
@@ -613,7 +613,7 @@ npm run build
 
 1. 创建符号链接到 Vault 插件目录：
    ```bash
-   ln -s /path/to/obsidian-lingxi /path/to/vault/.obsidian/plugins/ai-chat
+   ln -s /path/to/obsidian-lingxi /path/to/vault/.obsidian/plugins/lingxi
    ```
 
 2. 启动 `npm run dev`
@@ -703,7 +703,7 @@ src/
 <details>
 <summary><strong>Q: 多端同步后插件设置丢失？</strong></summary>
 
-灵犀插件设置存储在 `.obsidian/plugins/ai-chat/data.json` 中。确保 Remotely Save 没有排除 `.obsidian` 目录。同步完成后重启 Obsidian 即可加载新设置。
+灵犀插件设置存储在 `.obsidian/plugins/lingxi/data.json` 中。确保 Remotely Save 没有排除 `.obsidian` 目录。同步完成后重启 Obsidian 即可加载新设置。
 </details>
 
 ---

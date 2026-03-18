@@ -1,15 +1,15 @@
 {
-  "name": "obsidian-ai-chat",
+  "name": "obsidian-lingxi",
   "version": "0.1.0",
-  "description": "Obsidian AI Chat Plugin - Skill 驱动的 AI 对话，国内模型优先",
+  "description": "灵犀 Lingxi — Skill 驱动的 AI 对话插件，让 Obsidian 成为你的 AI 第二大脑",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["obsidian", "ai", "chat", "lingxi", "skill"],
+  "author": "月明水清深",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^16.11.6",
