@@ -951,3 +951,154 @@
   color: var(--text-faint);
   margin-top: 2px;
 }
+
+/* ===== 笔记引用标签栏 ===== */
+.ai-chat-note-refs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0 4px;
+}
+
+.ai-chat-note-ref-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-normal);
+  max-width: 200px;
+  transition: all 0.15s;
+}
+
+.ai-chat-note-ref-tag:hover {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary-alt);
+}
+
+.ai-chat-note-ref-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.ai-chat-note-ref-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-chat-note-ref-remove {
+  margin-left: 2px;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.ai-chat-note-ref-remove:hover {
+  opacity: 1;
+  color: var(--text-error);
+}
+
+/* ===== 笔记搜索弹出面板 ===== */
+.ai-chat-note-search-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  margin-bottom: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-chat-note-search-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  flex-shrink: 0;
+}
+
+.ai-chat-note-search-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.ai-chat-note-search-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ai-chat-note-search-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+
+.ai-chat-note-search-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ai-chat-note-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ai-chat-note-search-item:hover,
+.ai-chat-note-search-item-active {
+  background: var(--background-modifier-hover);
+}
+
+.ai-chat-note-search-item-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.ai-chat-note-search-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ai-chat-note-search-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-chat-note-search-item-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -23,6 +23,7 @@ export class SceneManager {
   private scenes: Map<string, Scene> = new Map();
   private globalRulesContent: string = '';
   private sceneIndexContent: string = '';
+  private onScanCompleteCallbacks: (() => void)[] = [];
   private app: App;
   private scenesFolder: string;
 
@@ -67,6 +68,11 @@ export class SceneManager {
     }
 
     console.log(`[AI Chat] 已加载 ${this.scenes.size} 个场景，共 ${this.getAllSkills().length} 个 Skill`);
+
+    // 通知订阅者扫描完成（用于热更新时同步归档映射等）
+    for (const cb of this.onScanCompleteCallbacks) {
+      try { cb(); } catch (e) { console.error('[AI Chat] onScanComplete 回调异常:', e); }
+    }
   }
 
   /**
@@ -382,6 +388,13 @@ export class SceneManager {
   }
 
   /**
+   * 注册扫描完成回调（用于热更新后同步配置）
+   */
+  onScanComplete(callback: () => void): void {
+    this.onScanCompleteCallbacks.push(callback);
+  }
+
+  /**
    * 获取所有场景
    */
   getAllScenes(): Scene[] {
@@ -552,6 +565,9 @@ export class SceneManager {
         parts.push(skill.outputFormat);
       }
     }
+
+    // 5. 输出格式约束：要求 AI 回复第一行以 # 标题 开头
+    parts.push('【重要输出要求】你的回复的第一行必须是一个 Markdown 一级标题（以 # 开头），作为本次回复内容的简洁标题（不超过 20 个字），标题应准确概括回复的核心主题。之后空一行再输出正文内容。');
 
     return parts.join('\n\n---\n\n');
   }

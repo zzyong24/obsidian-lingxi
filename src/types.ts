@@ -99,6 +99,16 @@ export interface Skill {
   sceneId: string;               // 所属场景 ID
 }
 
+// ===== 笔记引用层 =====
+
+/** 引用的笔记 */
+export interface NoteReference {
+  /** 笔记在 Vault 中的路径 */
+  path: string;
+  /** 笔记显示名称（不含 .md） */
+  name: string;
+}
+
 // ===== 归档层 =====
 
 /** 归档选项 */
@@ -215,7 +225,7 @@ export const DEFAULT_SETTINGS: AIChatSettings = {
   defaultTextModel: 'deepseek:deepseek-chat',
   defaultVisionModel: '',
   scenesFolder: 'skills-scenes',
-  defaultArchiveFolder: '_ai_output',
+  defaultArchiveFolder: 'AI笔记',
   autoArchive: true,
   confirmBeforeArchive: false,
   sendShortcut: 'enter',

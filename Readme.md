@@ -334,11 +334,18 @@ YourVault/
     │       │   ├── draft-generation.md
     │       │   └── content-rewriting.md
     │       └── ...
-    │
-    └── learning/                     # 📚 Scene: Learning Notes
-        ├── _scene.md
-        ├── _rules/
-        └── _skills/
+│
+├── content-creation/                 # 📁 Archive: content creation scene output (auto-created)
+│   ├── topic-management/             #     ← Skill output_folder
+│   ├── drafts/
+│   └── ...
+│
+├── learning/                         # 📁 Archive: learning scene output
+│   ├── 深度反思/
+│   ├── 知识卡片/
+│   └── ...
+│
+└── AI笔记/                           # 📁 Archive: default folder for unmatched content
 ```
 
 ### System Prompt Loading Strategy
@@ -367,7 +374,7 @@ name: Topic Discovery
 description: Help you discover content ideas from trends, comments, and competitors
 trigger_keywords: ["topic", "ideas", "trends"]
 category: Topic Management
-output_folder: _ai_output/topics
+output_folder: 选题管理
 output_template: note
 model_preference: text
 ---
@@ -480,8 +487,8 @@ Use the **Remotely Save** plugin + **Tencent Cloud Object Storage (COS)** to syn
 | | Default Text Model | Dropdown | `deepseek:deepseek-chat` |
 | | Default Vision Model | Dropdown | Empty |
 | **Scenes** | Scene Root Directory | Text | `skills-scenes` |
-| **Archive** | Default Archive Folder | Text | `_ai_output` |
-| | Auto-archive in Skill Mode | Toggle | On |
+| **Archive** | Default Archive Folder | Text | `AI笔记` |
+| | Auto-archive AI Replies | Toggle | On (all AI replies auto-archived) |
 | **Knowledge Retrieval** | Enable RAG | Toggle | Off |
 | | Embedding Provider | Dropdown | Empty |
 | | Embedding Model | Text | `text-embedding-v3` |
@@ -599,7 +606,7 @@ Go to **Settings → Lingxi**, configure a valid API Key for at least one model 
 <details>
 <summary><strong>Q: Where are archived notes?</strong></summary>
 
-By default, notes are archived to the `_output/` subfolder under the corresponding scene directory (e.g., `skills-scenes/content-creation/_output/drafts/`). If no scene is associated, it falls back to the `_ai_output/` folder. All paths are configurable in settings.
+When a Skill is matched, archives go to `sceneName/output_folder` (e.g., `content-creation/topic-management/`). When no Skill is matched, archives go to the default archive folder (default `AI笔记/`). All paths are configurable.
 </details>
 
 <details>

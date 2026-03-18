@@ -6,9 +6,10 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ChatMessage, ContentPart, Skill, Scene, AIChatSettings, StreamChunk } from '@/types';
+import { ChatMessage, ContentPart, Skill, Scene, AIChatSettings, StreamChunk, NoteReference } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { InputArea, ImageAttachment } from './InputArea';
+import { TFile } from 'obsidian';
 import { ModelSelector } from './ModelSelector';
 import { ConversationManager } from '@/conversation/ConversationManager';
 import { ProviderRegistry, OpenAICompatibleProvider } from '@/providers';
@@ -69,8 +70,8 @@ export const Chat: React.FC<ChatProps> = ({
   /**
    * 发送消息的核心逻辑（支持文本 + 图片多模态）
    */
-  const handleSend = useCallback(async (text: string, images?: ImageAttachment[]) => {
-    if ((!text.trim() && (!images || images.length === 0)) || isLoading) return;
+  const handleSend = useCallback(async (text: string, images?: ImageAttachment[], noteRefs?: NoteReference[]) => {
+    if ((!text.trim() && (!images || images.length === 0) && (!noteRefs || noteRefs.length === 0)) || isLoading) return;
 
     abortRef.current = false;
 
@@ -83,25 +84,76 @@ export const Chat: React.FC<ChatProps> = ({
 
     const { provider, model } = resolved;
 
-    // 构建用户消息（支持多模态）
-    let userMessage: ChatMessage;
+    // 读取引用笔记的内容
+    let noteContext = '';
+    if (noteRefs && noteRefs.length > 0) {
+      const noteParts: string[] = [];
+      for (const ref of noteRefs) {
+        try {
+          const file = app.vault.getAbstractFileByPath(ref.path);
+          if (file instanceof TFile) {
+            const content = await app.vault.read(file);
+            // 去除 frontmatter
+            const cleanContent = content.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+            noteParts.push(`【引用笔记: ${ref.name}】\n${cleanContent}`);
+          }
+        } catch (err) {
+          console.error(`[Lingxi] 读取引用笔记失败: ${ref.path}`, err);
+        }
+      }
+      if (noteParts.length > 0) {
+        noteContext = noteParts.join('\n\n---\n\n');
+      }
+    }
+
+    // 构建发送给 API 的完整文本（包含笔记全文）
+    const apiText = noteContext
+      ? `${text}\n\n---\n以下是我引用的笔记内容，请参考：\n\n${noteContext}`
+      : text;
+
+    // 构建 UI 显示用的文本（仅包含笔记引用标记，不含全文）
+    const displayText = (noteRefs && noteRefs.length > 0)
+      ? `${text}\n\n> 📄 引用了 ${noteRefs.length} 篇笔记：${noteRefs.map(r => `「${r.name}」`).join('、')}`
+      : text;
+
+    // UI 显示的用户消息
+    let displayMessage: ChatMessage;
     if (images && images.length > 0) {
-      const contentParts: ContentPart[] = [];
-      if (text.trim()) {
-        contentParts.push({ type: 'text', text: text.trim() });
+      const displayParts: ContentPart[] = [];
+      if (displayText.trim()) {
+        displayParts.push({ type: 'text', text: displayText.trim() });
       }
       for (const img of images) {
-        contentParts.push({
+        displayParts.push({
           type: 'image_url',
           image_url: { url: img.dataUrl },
         });
       }
-      userMessage = { role: 'user', content: contentParts };
+      displayMessage = { role: 'user', content: displayParts };
     } else {
-      userMessage = { role: 'user', content: text };
+      displayMessage = { role: 'user', content: displayText };
     }
 
-    conversationManager.append(userMessage);
+    // 发送给 API 的用户消息（包含笔记全文）
+    let apiMessage: ChatMessage;
+    if (images && images.length > 0) {
+      const apiParts: ContentPart[] = [];
+      if (apiText.trim()) {
+        apiParts.push({ type: 'text', text: apiText.trim() });
+      }
+      for (const img of images) {
+        apiParts.push({
+          type: 'image_url',
+          image_url: { url: img.dataUrl },
+        });
+      }
+      apiMessage = { role: 'user', content: apiParts };
+    } else {
+      apiMessage = { role: 'user', content: apiText };
+    }
+
+    // 存入对话管理器的是 UI 显示版本（不包含笔记全文）
+    conversationManager.append(displayMessage);
     syncMessages();
 
     setIsLoading(true);
@@ -167,8 +219,16 @@ export const Chat: React.FC<ChatProps> = ({
         messagesToSend.push({ role: 'system', content: ragContext });
       }
 
-      // 添加非 system 消息
-      messagesToSend.push(...contextMessages.filter(m => m.role !== 'system'));
+      // 添加非 system 消息，但最后一条用户消息替换为包含笔记全文的 API 版本
+      const nonSystemMessages = contextMessages.filter(m => m.role !== 'system');
+      if (noteContext && nonSystemMessages.length > 0) {
+        // 将最后一条用户消息替换为 API 版本
+        const lastIdx = nonSystemMessages.length - 1;
+        messagesToSend.push(...nonSystemMessages.slice(0, lastIdx));
+        messagesToSend.push(apiMessage);
+      } else {
+        messagesToSend.push(...nonSystemMessages);
+      }
 
       // 流式输出
       if (settings.streamOutput) {
@@ -196,12 +256,12 @@ export const Chat: React.FC<ChatProps> = ({
         if (fullContent) {
           conversationManager.append({ role: 'assistant', content: fullContent });
 
-          // 自动归档
-          if (settings.autoArchive && activeSkill) {
+          // 自动归档（不再限制必须匹配 Skill）
+          if (settings.autoArchive) {
             try {
               const result = await archiver.archive({
                 content: fullContent,
-                skill: activeSkill,
+                skill: activeSkill || undefined,
               });
               new Notice(`✅ 已归档到 ${result.filePath}`);
             } catch (error) {
@@ -219,11 +279,11 @@ export const Chat: React.FC<ChatProps> = ({
         if (content) {
           conversationManager.append({ role: 'assistant', content });
 
-          if (settings.autoArchive && activeSkill) {
+          if (settings.autoArchive) {
             try {
               const result = await archiver.archive({
                 content,
-                skill: activeSkill,
+                skill: activeSkill || undefined,
               });
               new Notice(`✅ 已归档到 ${result.filePath}`);
             } catch (error) {
@@ -241,7 +301,7 @@ export const Chat: React.FC<ChatProps> = ({
       syncMessages();
     }
   }, [
-    isLoading, currentModel, providerRegistry, conversationManager,
+    app, isLoading, currentModel, providerRegistry, conversationManager,
     selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager, syncMessages,
   ]);
 
@@ -396,6 +456,7 @@ export const Chat: React.FC<ChatProps> = ({
 
       {/* 输入区域 */}
       <InputArea
+        app={app}
         onSend={handleSend}
         selectedSkill={selectedSkill}
         onClearSkill={() => setSelectedSkill(null)}

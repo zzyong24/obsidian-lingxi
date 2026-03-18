@@ -30,7 +30,7 @@ export class RAGManager {
   /** 排除的目录前缀（不索引这些目录下的文件） */
   private excludePaths: string[] = [
     '.obsidian',
-    '_ai_output',
+    'AI笔记',
   ];
 
   constructor(app: App, settings: AIChatSettings) {

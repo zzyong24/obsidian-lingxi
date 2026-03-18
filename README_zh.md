@@ -347,23 +347,26 @@
     │   │   ├── 人设系统.md
     │   │   ├── 创作方法论.md
     │   │   └── ...
-    │   ├── _skills/                  # 场景级 Skills
-    │   │   ├── 选题管理/
-    │   │   │   ├── 选题收集.md
-    │   │   │   └── 选题深化.md
-    │   │   ├── 素材创作/
-    │   │   │   ├── 文稿生成.md
-    │   │   │   └── 内容改写.md
-    │   │   └── ...
-    │   └── _output/                  # 📁 归档输出目录（Skill 生成内容自动存储于此）
+    │   └── _skills/                  # 场景级 Skills
     │       ├── 选题管理/
-    │       ├── 文稿库/
+    │       │   ├── 选题收集.md
+    │       │   └── 选题深化.md
+    │       ├── 素材创作/
+    │       │   ├── 文稿生成.md
+    │       │   └── 内容改写.md
     │       └── ...
-    │
-    └── 学习/                         # 📚 场景：学习笔记
-        ├── _scene.md
-        ├── _rules/
-        └── _skills/
+│
+├── 自媒体/                           # 📁 归档：自媒体场景输出（自动创建）
+│   ├── 选题管理/                     #     ← Skill output_folder
+│   ├── 文稿库/
+│   └── ...
+│
+├── 知识学习/                         # 📁 归档：知识学习场景输出
+│   ├── 深度反思/
+│   ├── 知识卡片/
+│   └── ...
+│
+└── AI笔记/                           # 📁 归档：未匹配 Skill 时的默认目录
 ```
 
 ### System Prompt 加载策略
@@ -382,6 +385,18 @@
          最终 System Prompt
 ```
 
+### 归档目录规则
+
+AI 回复自动归档时，归档目录由 **Skill 所属场景 + Skill 的 `output_folder`** 自动确定，无需额外配置：
+
+| 情况 | 归档路径 | 示例 |
+|------|---------|------|
+| 匹配到 Skill | `场景名/output_folder` | `自媒体/选题管理/` |
+| 匹配到 Skill 但无 output_folder | `场景名/` | `自媒体/` |
+| 未匹配到 Skill | 默认归档文件夹 | `AI笔记/` |
+
+> 💡 归档目录以 Vault 一级目录为根，和场景名同名。例如场景「自媒体」下的 Skill「选题收集」（`output_folder: 选题管理`），归档到 `自媒体/选题管理/`。
+
 ### Skill 文件规范
 
 每个 Skill 是一个 `.md` 文件，包含 Frontmatter 元信息和 System Prompt：
@@ -392,7 +407,7 @@ name: 选题收集
 description: 帮你从热点、评论区、竞品中挖掘选题灵感
 trigger_keywords: ["选题", "灵感", "热点"]
 category: 选题管理
-output_folder: _ai_output/选题
+output_folder: 选题管理
 output_template: note
 model_preference: text
 ---
@@ -567,8 +582,8 @@ model_preference: text
 | | 默认文本模型 | 下拉 | `deepseek:deepseek-chat` |
 | | 默认视觉模型 | 下拉 | 空 |
 | **场景** | 场景根目录路径 | 文本框 | `skills-scenes` |
-| **归档** | 默认归档文件夹 | 文本框 | `_ai_output` |
-| | Skill 模式自动归档 | 开关 | 开启 |
+| **归档** | 默认归档文件夹 | 文本框 | `AI笔记` |
+| | 自动归档 AI 回复 | 开关 | 开启（所有 AI 回复自动归档） |
 | **知识检索** | 启用知识检索（RAG） | 开关 | 关闭 |
 | | Embedding 提供商 | 下拉 | 空 |
 | | Embedding 模型 | 文本框 | `text-embedding-v3` |
@@ -686,7 +701,7 @@ src/
 <details>
 <summary><strong>Q: 归档的笔记在哪里？</strong></summary>
 
-归档文件统一存储在各场景目录下的 `_output/` 子文件夹中（如 `skills-scenes/自媒体/_output/文稿库/`）。如果无场景信息，则归档到默认的 `_ai_output/` 文件夹。路径均可在设置中修改。
+匹配到 Skill 时，归档到 `场景名/output_folder` 目录（如 `自媒体/选题管理/`、`知识学习/深度反思/`）。未匹配到 Skill 时，归档到设置中的默认归档文件夹（默认 `AI笔记/`）。
 </details>
 
 <details>

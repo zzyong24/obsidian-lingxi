@@ -168,7 +168,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         />
       </div>
       <div className="ai-chat-settings-field ai-chat-settings-toggle">
-        <label>Skill 模式自动归档</label>
+        <label>自动归档 AI 回复</label>
         <label className="ai-chat-switch">
           <input
             type="checkbox"

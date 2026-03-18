@@ -27,21 +27,24 @@ export class AutoArchiver {
     const folder = this.resolveOutputFolder(skill);
     await this.ensureFolder(folder);
 
+    // 从 AI 回复中提取第一行 # 标题（AI 已被要求在第一行输出标题）
+    const { aiTitle, bodyContent } = this.extractAITitle(content);
+
+    // 确定最终标题：优先用 AI 返回的标题 > 调用方指定的 title > 正则提取 > 兜底关键词
+    const displayTitle = aiTitle 
+      || title 
+      || this.extractContentTitle(bodyContent) 
+      || (skill ? `${skill.name}：${this.extractKeywords(bodyContent)}` : this.extractKeywords(bodyContent));
+
     // 生成文件名
-    const fileName = this.generateFileName(skill, title, content);
+    const fileName = this.generateFileName(skill, displayTitle, bodyContent);
     const filePath = `${folder}/${fileName}`;
 
     // 生成 Frontmatter
     const frontmatter = this.buildFrontmatter(skill, tags);
 
-    // 生成文件标题（优先从内容中提取有意义的标题）
-    const contentTitle = this.extractContentTitle(content);
-    const displayTitle = title || (skill 
-      ? `${skill.name}：${contentTitle || this.extractKeywords(content)}` 
-      : contentTitle || this.extractKeywords(content));
-
-    // 组装完整内容
-    const fullContent = `${frontmatter}\n# ${displayTitle}\n\n${content}\n`;
+    // 组装完整内容（标题已提取，正文中不再重复）
+    const fullContent = `${frontmatter}\n# ${displayTitle}\n\n${bodyContent}\n`;
 
     // 创建文件
     await this.app.vault.create(filePath, fullContent);
@@ -50,19 +53,66 @@ export class AutoArchiver {
   }
 
   /**
+   * 从 AI 回复中提取第一行 # 标题
+   * AI 被要求在回复第一行输出 # 标题，这里提取并返回剩余正文
+   */
+  private extractAITitle(content: string): { aiTitle: string | null; bodyContent: string } {
+    const lines = content.split('\n');
+    
+    // 跳过开头的空行
+    let startIdx = 0;
+    while (startIdx < lines.length && !lines[startIdx].trim()) {
+      startIdx++;
+    }
+
+    if (startIdx < lines.length) {
+      const firstLine = lines[startIdx].trim();
+      // 匹配 # 标题 格式（一级标题）
+      const match = firstLine.match(/^#\s+(.+)/);
+      if (match) {
+        const aiTitle = match[1]
+          .replace(/\*+/g, '')  // 去除加粗标记
+          .replace(/[\p{Emoji}\u200d\ufe0f]/gu, '')  // 去除 emoji
+          .trim();
+        if (aiTitle.length >= 2) {
+          // 移除标题行和紧随的空行
+          let bodyStartIdx = startIdx + 1;
+          while (bodyStartIdx < lines.length && !lines[bodyStartIdx].trim()) {
+            bodyStartIdx++;
+          }
+          const bodyContent = lines.slice(bodyStartIdx).join('\n').trim();
+          return { aiTitle: aiTitle.slice(0, 30), bodyContent };
+        }
+      }
+    }
+
+    return { aiTitle: null, bodyContent: content };
+  }
+
+  /**
    * 解析归档输出目录
-   * 优先级：场景目录/_output/{skill.outputFolder} > 场景目录/_output > 默认归档目录
+   * 
+   * 目录解析规则：
+   * 1. 有 Skill 且 Skill 有 output_folder → 场景名/output_folder
+   * 2. 有 Skill 但无 output_folder → 场景名
+   * 3. 无 Skill → 默认归档文件夹
+   * 
+   * 示例：
+   *   场景「自媒体」+ Skill output_folder「选题管理」→ 自媒体/选题管理
+   *   场景「知识学习」+ Skill output_folder「crafted/reflections」→ 知识学习/crafted/reflections
    */
   private resolveOutputFolder(skill?: Skill): string {
-    if (skill?.sceneId) {
-      const sceneOutputBase = `${this.scenesFolder}/${skill.sceneId}/_output`;
+    if (skill) {
+      // 场景名作为一级目录
+      const sceneFolder = skill.sceneId;
       if (skill.outputFolder) {
-        return `${sceneOutputBase}/${skill.outputFolder}`;
+        return `${sceneFolder}/${skill.outputFolder}`;
       }
-      return sceneOutputBase;
+      return sceneFolder;
     }
-    // 无场景信息时使用默认归档目录
-    return skill?.outputFolder || this.defaultFolder;
+
+    // 无 Skill 时使用默认归档目录
+    return this.defaultFolder;
   }
 
   /**
@@ -85,19 +135,20 @@ export class AutoArchiver {
   }
 
   /**
-   * 生成文件名: YYYYMMDD_{Skill名称}_{内容标题}.md
+   * 生成文件名: YYYYMMDD_{Skill名称}_{标题}.md
+   * 注意：title 参数由 archive() 方法已确定好（AI标题 > 手动标题 > 正则提取 > 关键词兜底）
    */
-  private generateFileName(skill?: Skill, title?: string, content?: string): string {
+  private generateFileName(skill?: Skill, title?: string, _content?: string): string {
     const date = new Date();
     const dateStr = date.getFullYear().toString() +
       (date.getMonth() + 1).toString().padStart(2, '0') +
       date.getDate().toString().padStart(2, '0');
 
     const skillPart = skill ? `_${skill.name}` : '';
-    const keywordPart = title || this.extractContentTitle(content || '') || this.extractKeywords(content || '');
+    const titlePart = title || '未命名';
 
     // 清理非法字符
-    const cleanName = `${dateStr}${skillPart}_${keywordPart}`
+    const cleanName = `${dateStr}${skillPart}_${titlePart}`
       .replace(/[\/:*?"<>|\n\r]/g, '_')
       .replace(/_+/g, '_')  // 合并连续下划线
       .replace(/_$/, '')     // 去除末尾下划线
