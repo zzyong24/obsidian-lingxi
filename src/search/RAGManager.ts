@@ -8,7 +8,7 @@
  * 3. 将检索到的知识片段注入 System Prompt，让 LLM 基于真实知识回答
  */
 
-import { App, TFile, TFolder, Notice } from 'obsidian';
+import { App, TFile, Notice } from 'obsidian';
 import { EmbeddingService } from './EmbeddingService';
 import { VectorStore, SearchResult } from './VectorStore';
 import { AIChatSettings } from '@/types';
@@ -277,7 +277,7 @@ export class RAGManager {
     let saveTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedSave = () => {
       if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => this.vectorStore.save(), 3000);
+      saveTimer = setTimeout(() => { void this.vectorStore.save(); }, 3000);
     };
 
     // 文件修改时重新索引

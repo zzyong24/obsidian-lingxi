@@ -72,7 +72,9 @@ export class AutoArchiver {
       if (match) {
         const aiTitle = match[1]
           .replace(/\*+/g, '')  // 去除加粗标记
-          .replace(/[\p{Emoji}\u200d\ufe0f]/gu, '')  // 去除 emoji
+          .replace(/\p{Extended_Pictographic}/gu, '')  // 去除 emoji
+          .replace(/\u200d/g, '')  // 去除 ZWJ
+          .replace(/\ufe0f/g, '')  // 去除 VS16
           .trim();
         if (aiTitle.length >= 2) {
           // 移除标题行和紧随的空行
@@ -149,7 +151,7 @@ export class AutoArchiver {
 
     // 清理非法字符
     const cleanName = `${dateStr}${skillPart}_${titlePart}`
-      .replace(/[\/:*?"<>|\n\r]/g, '_')
+      .replace(/[/:*?"<>|\n\r]/g, '_')
       .replace(/_+/g, '_')  // 合并连续下划线
       .replace(/_$/, '')     // 去除末尾下划线
       .slice(0, 100);
@@ -181,7 +183,7 @@ export class AutoArchiver {
         let value = boldMatch[2]
           .replace(/（[^）]*URL[^）]*）/g, '')  // 去除含 URL 的中文括号
           .replace(/\([^)]*http[^)]*\)/g, '')     // 去除含 URL 的英文括号
-          .replace(/https?:\/\/\S+/g, '')          // 去除裸 URL
+          .replace(new RegExp('https?://\\S+', 'g'), '')       // 去除裸 URL
           .replace(/\*+/g, '')
           .trim();
         if (value.length >= 2) {
@@ -195,7 +197,7 @@ export class AutoArchiver {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('>') || trimmed === '---') continue;
 
-      const headingMatch = trimmed.match(/^#{1,6}\s+(?:[\p{Emoji}\u200d\ufe0f]+\s*)?(.+)/u);
+      const headingMatch = trimmed.match(/^#{1,6}\s+(?:\p{Extended_Pictographic}[\u200d\ufe0f]*\s*)?(.+)/u);
       if (headingMatch) {
         const title = headingMatch[1]
           .replace(/\*+/g, '')
@@ -226,7 +228,9 @@ export class AutoArchiver {
       const clean = trimmed
         .replace(/^#+\s*/, '')
         .replace(/\*+/g, '')
-        .replace(/[\p{Emoji}\u200d\ufe0f]/gu, '')
+        .replace(/\p{Extended_Pictographic}/gu, '')
+        .replace(/\u200d/g, '')
+        .replace(/\ufe0f/g, '')
         .trim();
       if (clean.length >= 2) {
         meaningfulLines.push(clean);

@@ -7,7 +7,6 @@ import { App, PluginSettingTab } from 'obsidian';
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { SettingsPanel } from '@/ui/SettingsPanel';
-import { AIChatSettings } from '@/types';
 import type AIChatPlugin from '@/main';
 
 export class AIChatSettingTab extends PluginSettingTab {
@@ -29,7 +28,7 @@ export class AIChatSettingTab extends PluginSettingTab {
     this.root.render(
       <SettingsPanel
         settings={this.plugin.getSettings()}
-        onSettingsChange={(settings) => this.plugin.savePluginSettings(settings)}
+        onSettingsChange={(settings) => { void this.plugin.savePluginSettings(settings); }}
         onTestConnection={(providerId) => this.plugin.testProviderConnection(providerId)}
       />
     );

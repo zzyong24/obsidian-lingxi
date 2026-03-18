@@ -69,9 +69,10 @@ export const Chat: React.FC<ChatProps> = ({
   /**
    * 发送消息的核心逻辑（支持文本 + 图片多模态）
    */
-  const handleSend = useCallback(async (text: string, images?: ImageAttachment[], noteRefs?: NoteReference[]) => {
+  const handleSend = useCallback((text: string, images?: ImageAttachment[], noteRefs?: NoteReference[]) => {
     if ((!text.trim() && (!images || images.length === 0) && (!noteRefs || noteRefs.length === 0)) || isLoading) return;
 
+    void (async () => {
     abortRef.current = false;
 
     // 解析模型
@@ -299,6 +300,7 @@ export const Chat: React.FC<ChatProps> = ({
       setStreamingContent('');
       syncMessages();
     }
+    })();
   }, [
     app, isLoading, currentModel, providerRegistry, conversationManager,
     selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager, syncMessages,
@@ -307,13 +309,15 @@ export const Chat: React.FC<ChatProps> = ({
   /**
    * 保存为笔记
    */
-  const handleSaveAsNote = useCallback(async (content: string) => {
-    try {
-      const result = await archiver.archive({ content });
-      new Notice(`✅ 已保存到 ${result.filePath}`);
-    } catch (error) {
-      new Notice(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
-    }
+  const handleSaveAsNote = useCallback((content: string) => {
+    void (async () => {
+      try {
+        const result = await archiver.archive({ content });
+        new Notice(`✅ 已保存到 ${result.filePath}`);
+      } catch (error) {
+        new Notice(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
+    })();
   }, [archiver]);
 
   /**

@@ -50,7 +50,7 @@ export default class AIChatPlugin extends Plugin {
     this.addSettingTab(new AIChatSettingTab(this.app, this));
 
     // 添加左侧 Ribbon 图标
-    this.addRibbonIcon('message-square', `打开 ${PLUGIN_DISPLAY_NAME}`, () => {
+    this.addRibbonIcon('message-square', `Open ${PLUGIN_DISPLAY_NAME}`, () => {
       this.activateView();
     });
 

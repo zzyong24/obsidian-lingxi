@@ -93,7 +93,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
               <button
                 className="ai-chat-settings-test-btn"
-                onClick={() => handleTestConnection(provider.id)}
+                onClick={() => { void handleTestConnection(provider.id); }}
                 disabled={!provider.apiKey}
               >
                 {testResults.get(provider.id) === null ? '测试中...' :

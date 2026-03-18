@@ -100,9 +100,8 @@ export class OpenAICompatibleProvider {
     }
 
     try {
-      // 使用原生 fetch 进行流式请求（Obsidian 的 requestUrl 不支持流式 SSE）
-      // eslint-disable-next-line no-restricted-globals
-      const response = await fetch(url, {
+      // Obsidian 的 requestUrl 不支持流式 SSE，需要使用浏览器原生 fetch API
+      const response = await globalThis.fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

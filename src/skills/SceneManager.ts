@@ -80,8 +80,8 @@ export class SceneManager {
    */
   private async loadGlobalRules(rootFolder: TFolder): Promise<void> {
     const globalRulesFolder = rootFolder.children.find(
-      c => c instanceof TFolder && c.name === '_global_rules'
-    ) as TFolder | undefined;
+      (c): c is TFolder => c instanceof TFolder && c.name === '_global_rules'
+    );
 
     if (!globalRulesFolder) {
       this.globalRulesContent = '';
@@ -110,8 +110,8 @@ export class SceneManager {
    */
   private async loadSceneIndex(rootFolder: TFolder): Promise<void> {
     const indexFile = rootFolder.children.find(
-      c => c instanceof TFile && c.name === '_scenes_index.md'
-    ) as TFile | undefined;
+      (c): c is TFile => c instanceof TFile && c.name === '_scenes_index.md'
+    );
 
     if (!indexFile) {
       this.sceneIndexContent = '';
@@ -141,8 +141,8 @@ export class SceneManager {
     let scenePrompt = '';
 
     const sceneFile = folder.children.find(
-      c => c instanceof TFile && c.name === '_scene.md'
-    ) as TFile | undefined;
+      (c): c is TFile => c instanceof TFile && c.name === '_scene.md'
+    );
 
     if (sceneFile) {
       try {
@@ -169,8 +169,8 @@ export class SceneManager {
     // 2. 读取场景级 _rules/
     let rulesContent = '';
     const rulesFolder = folder.children.find(
-      c => c instanceof TFolder && c.name === '_rules'
-    ) as TFolder | undefined;
+      (c): c is TFolder => c instanceof TFolder && c.name === '_rules'
+    );
 
     if (rulesFolder) {
       const ruleContents: string[] = [];
@@ -191,8 +191,8 @@ export class SceneManager {
     // 3. 扫描场景级 _skills/
     const skills: Skill[] = [];
     const skillsFolder = folder.children.find(
-      c => c instanceof TFolder && c.name === '_skills'
-    ) as TFolder | undefined;
+      (c): c is TFolder => c instanceof TFolder && c.name === '_skills'
+    );
 
     if (skillsFolder) {
       await this.scanSkillsFolder(skillsFolder, sceneId, skills);
