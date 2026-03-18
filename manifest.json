@@ -1,9 +1,9 @@
 {
 	"id": "ai-chat",
-	"name": "AI Chat",
+	"name": "灵犀 Lingxi",
 	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "AI 对话插件，通过 Skill/Prompt 模板 + 国内大模型，将创作灵感自动转化为结构化笔记。",
-	"author": "AI Chat Team",
+	"description": "Skill 驱动的 AI 对话插件 — 心有灵犀，让 Obsidian 成为你的 AI 第二大脑",
+	"author": "月明水清深",
 	"isDesktopOnly": false
 }

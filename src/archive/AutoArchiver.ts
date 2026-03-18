@@ -32,8 +32,11 @@ export class AutoArchiver {
     // 生成 Frontmatter
     const frontmatter = this.buildFrontmatter(skill, tags);
 
-    // 生成文件标题
-    const displayTitle = title || (skill ? `${skill.name}：${this.extractKeywords(content)}` : this.extractKeywords(content));
+    // 生成文件标题（优先从内容中提取有意义的标题）
+    const contentTitle = this.extractContentTitle(content);
+    const displayTitle = title || (skill 
+      ? `${skill.name}：${contentTitle || this.extractKeywords(content)}` 
+      : contentTitle || this.extractKeywords(content));
 
     // 组装完整内容
     const fullContent = `${frontmatter}\n# ${displayTitle}\n\n${content}\n`;
@@ -55,7 +58,7 @@ export class AutoArchiver {
   }
 
   /**
-   * 生成文件名: YYYYMMDD_{Skill名称}_{关键词}.md
+   * 生成文件名: YYYYMMDD_{Skill名称}_{内容标题}.md
    */
   private generateFileName(skill?: Skill, title?: string, content?: string): string {
     const date = new Date();
@@ -64,27 +67,97 @@ export class AutoArchiver {
       date.getDate().toString().padStart(2, '0');
 
     const skillPart = skill ? `_${skill.name}` : '';
-    const keywordPart = title || this.extractKeywords(content || '');
+    const keywordPart = title || this.extractContentTitle(content || '') || this.extractKeywords(content || '');
 
     // 清理非法字符
     const cleanName = `${dateStr}${skillPart}_${keywordPart}`
-      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/[\/:*?"<>|\n\r]/g, '_')
+      .replace(/_+/g, '_')  // 合并连续下划线
+      .replace(/_$/, '')     // 去除末尾下划线
       .slice(0, 100);
 
     return `${cleanName}.md`;
   }
 
   /**
-   * 从内容中提取前几个字作为关键词
+   * 从 AI 输出内容中提取真正的内容标题
+   * 跳过场景提示块（> 开头的引用）和分割线（---）
+   * 策略：优先找具体描述（**选题**：xxx / **反思主题**：xxx），其次用第一个标题
+   */
+  private extractContentTitle(content: string): string | null {
+    const lines = content.split('\n');
+
+    // 需要跳过的标签名（场景提示中的标签）
+    const skipLabels = ['场景', 'Skill', 'Rules', 'skill', 'rules'];
+
+    // 第一遍：找具体的内容描述标签（**选题**：xxx、**反思主题**：xxx、**来源**：xxx 等）
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('>') || trimmed === '---') continue;
+
+      const boldMatch = trimmed.match(/^\*\*(.+?)\*\*[：:]\s*(.+)/);
+      if (boldMatch) {
+        const label = boldMatch[1].trim();
+        if (skipLabels.includes(label)) continue;
+
+        let value = boldMatch[2]
+          .replace(/\（[^）]*URL[^）]*\）/g, '')  // 去除含 URL 的中文括号
+          .replace(/\([^)]*http[^)]*\)/g, '')     // 去除含 URL 的英文括号
+          .replace(/https?:\/\/\S+/g, '')          // 去除裸 URL
+          .replace(/\*+/g, '')
+          .trim();
+        if (value.length >= 2) {
+          return value.slice(0, 30);
+        }
+      }
+    }
+
+    // 第二遍：退回用第一个 Markdown 标题
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('>') || trimmed === '---') continue;
+
+      const headingMatch = trimmed.match(/^#{1,6}\s+(?:[\p{Emoji}\u200d\ufe0f]+\s*)?(.+)/u);
+      if (headingMatch) {
+        const title = headingMatch[1]
+          .replace(/\*+/g, '')
+          .trim();
+        if (title.length >= 2) {
+          return title.slice(0, 30);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 兜底：从内容中提取前几个字作为关键词（跳过场景提示块）
    */
   private extractKeywords(content: string): string {
-    // 去除 Markdown 标记，取前15个字
-    const clean = content
-      .replace(/^#+\s*/gm, '')
-      .replace(/\*+/g, '')
-      .replace(/\n/g, ' ')
-      .trim();
-    return clean.slice(0, 15) + (clean.length > 15 ? '...' : '');
+    const lines = content.split('\n');
+    const meaningfulLines: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // 跳过空行、引用块、分割线、标题标记
+      if (!trimmed || trimmed.startsWith('>') || trimmed === '---') {
+        continue;
+      }
+      // 清理 Markdown 标记
+      const clean = trimmed
+        .replace(/^#+\s*/, '')
+        .replace(/\*+/g, '')
+        .replace(/[\p{Emoji}\u200d\ufe0f]/gu, '')
+        .trim();
+      if (clean.length >= 2) {
+        meaningfulLines.push(clean);
+        break;
+      }
+    }
+
+    const text = meaningfulLines.join(' ');
+    return text.slice(0, 20) + (text.length > 20 ? '...' : '') || '未命名';
   }
 
   /**

@@ -50,7 +50,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   return (
     <div className="ai-chat-settings">
-      <h2>AI Chat 设置</h2>
+      <h2>灵犀 设置</h2>
 
       {/* 模型提供商配置 */}
       <h3>模型提供商</h3>

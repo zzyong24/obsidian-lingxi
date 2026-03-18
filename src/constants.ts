@@ -4,7 +4,7 @@
 export const CHAT_VIEWTYPE = 'ai-chat-view';
 
 /** 插件显示名称 */
-export const PLUGIN_DISPLAY_NAME = 'AI Chat';
+export const PLUGIN_DISPLAY_NAME = '灵犀';
 
 /** 事件名称 */
 export const EVENT_NAMES = {
