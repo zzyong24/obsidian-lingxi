@@ -521,6 +521,12 @@ export class SceneManager {
   buildSystemPrompt(sceneId?: string, skill?: Skill): string {
     const parts: string[] = [];
 
+    // 0. 注入当前时间信息（避免大模型产生时间幻觉）
+    const now = new Date();
+    const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    const timeInfo = `当前时间：${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${weekDays[now.getDay()]}`;
+    parts.push(timeInfo);
+
     // 1. 全局 Rules
     if (this.globalRulesContent) {
       parts.push(this.globalRulesContent);

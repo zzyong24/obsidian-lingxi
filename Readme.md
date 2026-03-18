@@ -61,6 +61,7 @@
 | 📡 **Streaming Output** | Real-time typewriter-style AI responses for a smooth experience |
 | 🔒 **Fully Local Data** | All data stored in your Obsidian Vault — zero cloud dependency |
 | 📱 **Multi-device Sync** | Sync across desktop and mobile with Remotely Save + COS |
+| 🔍 **Knowledge Retrieval (RAG)** | Automatically retrieves relevant knowledge from your Vault notes, enabling AI to answer based on your notes |
 
 ---
 
@@ -342,13 +343,15 @@ YourVault/
 
 ### System Prompt Loading Strategy
 
-The plugin uses a **three-layer stacking** approach to build the complete System Prompt:
+The plugin uses a **multi-layer stacking** approach to build the complete System Prompt:
 
 ```
 ┌─────────────────────────────┐
-│  Layer 1: Global Rules       │  ← _global_rules/*.md (loaded for every conversation)
-│  Layer 2: Scene Rules        │  ← content-creation/_rules/*.md (loaded when scene is selected)
-│  Layer 3: Skill Prompt       │  ← topic-discovery.md's System Prompt section
+│  Layer 0: Current Time         │  ← Auto-injected (prevents AI time hallucination)
+│  Layer 1: Global Rules         │  ← _global_rules/*.md (loaded for every conversation)
+│  Layer 2: Scene Rules          │  ← content-creation/_rules/*.md (loaded when scene is selected)
+│  Layer 3: Skill Prompt         │  ← topic-discovery.md's System Prompt section
+│  Layer 4: RAG Knowledge Context│  ← Related content retrieved from Vault notes
 └─────────────────────────────┘
                 ↓
          Final System Prompt
@@ -479,6 +482,11 @@ Use the **Remotely Save** plugin + **Tencent Cloud Object Storage (COS)** to syn
 | **Scenes** | Scene Root Directory | Text | `skills-scenes` |
 | **Archive** | Default Archive Folder | Text | `_ai_output` |
 | | Auto-archive in Skill Mode | Toggle | On |
+| **Knowledge Retrieval** | Enable RAG | Toggle | Off |
+| | Embedding Provider | Dropdown | Empty |
+| | Embedding Model | Text | `text-embedding-v3` |
+| | Retrieval Top K | Slider | 3 |
+| | Similarity Threshold | Slider | 0.3 |
 | **Interface** | Send Shortcut | Dropdown | Enter |
 | | Streaming Output | Toggle | On |
 | | Temperature | Slider | 0.7 |
@@ -542,6 +550,10 @@ src/
 ├── skills/
 │   ├── SceneManager.ts        # Scene-based Skill/Rules management
 │   └── SkillManager.ts        # Legacy Skill management (compatibility)
+├── search/
+│   ├── EmbeddingService.ts    # Embedding vectorization service
+│   ├── VectorStore.ts         # Local vector storage (JSON)
+│   └── RAGManager.ts          # RAG retrieval orchestrator
 ├── conversation/
 │   └── ConversationManager.ts # Conversation context management
 ├── archive/
@@ -587,7 +599,7 @@ Go to **Settings → Lingxi**, configure a valid API Key for at least one model 
 <details>
 <summary><strong>Q: Where are archived notes?</strong></summary>
 
-By default, notes are archived to the `_ai_output/` folder in your Vault root. If a Skill has `output_folder` set, it archives to the corresponding folder. All paths are configurable in settings.
+By default, notes are archived to the `_output/` subfolder under the corresponding scene directory (e.g., `skills-scenes/content-creation/_output/drafts/`). If no scene is associated, it falls back to the `_ai_output/` folder. All paths are configurable in settings.
 </details>
 
 <details>

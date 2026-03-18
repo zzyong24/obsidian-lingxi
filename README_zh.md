@@ -67,6 +67,7 @@
 | 📡 **流式输出** | 打字机效果实时显示 AI 回复，体验流畅 |
 | 🔒 **数据全本地** | 所有数据存储在 Obsidian Vault 中，零云端依赖 |
 | 📱 **多端同步** | 搭配 Remotely Save + COS 实现桌面/手机多端同步 |
+| 🔍 **知识检索（RAG）** | 自动从 Vault 笔记中检索相关知识，让 AI 基于你的笔记回答 |
 
 ---
 
@@ -346,13 +347,17 @@
     │   │   ├── 人设系统.md
     │   │   ├── 创作方法论.md
     │   │   └── ...
-    │   └── _skills/                  # 场景级 Skills
+    │   ├── _skills/                  # 场景级 Skills
+    │   │   ├── 选题管理/
+    │   │   │   ├── 选题收集.md
+    │   │   │   └── 选题深化.md
+    │   │   ├── 素材创作/
+    │   │   │   ├── 文稿生成.md
+    │   │   │   └── 内容改写.md
+    │   │   └── ...
+    │   └── _output/                  # 📁 归档输出目录（Skill 生成内容自动存储于此）
     │       ├── 选题管理/
-    │       │   ├── 选题收集.md
-    │       │   └── 选题深化.md
-    │       ├── 素材创作/
-    │       │   ├── 文稿生成.md
-    │       │   └── 内容改写.md
+    │       ├── 文稿库/
     │       └── ...
     │
     └── 学习/                         # 📚 场景：学习笔记
@@ -363,13 +368,15 @@
 
 ### System Prompt 加载策略
 
-插件采用 **三层叠加** 的方式构建完整的 System Prompt：
+插件采用 **多层叠加** 的方式构建完整的 System Prompt：
 
 ```
 ┌─────────────────────────────┐
+│  Layer 0: 当前时间           │  ← 自动注入（避免 AI 产生时间幻觉）
 │  Layer 1: 全局 Rules         │  ← _global_rules/*.md（每次对话必加载）
 │  Layer 2: 场景 Rules         │  ← 自媒体/_rules/*.md（选择场景后加载）
 │  Layer 3: Skill Prompt       │  ← 选题收集.md 的 System Prompt 部分
+│  Layer 4: RAG 知识上下文      │  ← 从 Vault 笔记中检索到的相关内容
 └─────────────────────────────┘
                 ↓
          最终 System Prompt
@@ -562,6 +569,11 @@ model_preference: text
 | **场景** | 场景根目录路径 | 文本框 | `skills-scenes` |
 | **归档** | 默认归档文件夹 | 文本框 | `_ai_output` |
 | | Skill 模式自动归档 | 开关 | 开启 |
+| **知识检索** | 启用知识检索（RAG） | 开关 | 关闭 |
+| | Embedding 提供商 | 下拉 | 空 |
+| | Embedding 模型 | 文本框 | `text-embedding-v3` |
+| | 检索结果数量 | 滑块 | 3 |
+| | 相似度阈值 | 滑块 | 0.3 |
 | **界面** | 发送快捷键 | 下拉 | Enter |
 | | 流式输出 | 开关 | 开启 |
 | | 温度 | 滑块 | 0.7 |
@@ -625,6 +637,10 @@ src/
 ├── skills/
 │   ├── SceneManager.ts        # 场景化 Skill/Rules 管理
 │   └── SkillManager.ts        # 传统 Skill 管理（兼容）
+├── search/
+│   ├── EmbeddingService.ts    # Embedding 向量化服务
+│   ├── VectorStore.ts         # 本地向量存储（JSON）
+│   └── RAGManager.ts          # RAG 检索编排器
 ├── conversation/
 │   └── ConversationManager.ts # 对话上下文管理
 ├── archive/
@@ -670,7 +686,7 @@ src/
 <details>
 <summary><strong>Q: 归档的笔记在哪里？</strong></summary>
 
-默认归档到 Vault 根目录下的 `_ai_output/` 文件夹。如果 Skill 设置了 `output_folder`，则归档到对应文件夹。路径均可在设置中修改。
+归档文件统一存储在各场景目录下的 `_output/` 子文件夹中（如 `skills-scenes/自媒体/_output/文稿库/`）。如果无场景信息，则归档到默认的 `_ai_output/` 文件夹。路径均可在设置中修改。
 </details>
 
 <details>

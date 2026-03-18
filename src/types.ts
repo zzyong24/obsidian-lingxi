@@ -161,6 +161,16 @@ export interface AIChatSettings {
   temperature: number;
   // 上下文窗口大小（消息数）
   maxContextMessages: number;
+  // RAG 相关设置
+  ragEnabled: boolean;
+  // Embedding 模型提供商 ID
+  ragEmbeddingProvider: string;
+  // Embedding 模型名称
+  ragEmbeddingModel: string;
+  // RAG 检索返回的最大片段数
+  ragTopK: number;
+  // RAG 相似度阈值（0-1，低于此值不返回）
+  ragSimilarityThreshold: number;
 }
 
 /** 默认设置 */
@@ -212,4 +222,9 @@ export const DEFAULT_SETTINGS: AIChatSettings = {
   streamOutput: true,
   temperature: 0.7,
   maxContextMessages: 20,
+  ragEnabled: false,
+  ragEmbeddingProvider: '',
+  ragEmbeddingModel: '',
+  ragTopK: 3,
+  ragSimilarityThreshold: 0.3,
 };

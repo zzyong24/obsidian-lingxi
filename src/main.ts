@@ -10,6 +10,7 @@ import { ProviderRegistry } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
 import { ConversationManager } from '@/conversation/ConversationManager';
+import { RAGManager } from '@/search/RAGManager';
 import ChatView from '@/ui/ChatView';
 import { AIChatSettingTab } from '@/ui/SettingsTab';
 import { Notice, Plugin, WorkspaceLeaf } from 'obsidian';
@@ -20,6 +21,7 @@ export default class AIChatPlugin extends Plugin {
   sceneManager: SceneManager;
   archiver: AutoArchiver;
   conversationManager: ConversationManager;
+  ragManager: RAGManager;
 
   async onload(): Promise<void> {
     console.log(`[AI Chat] 加载插件 v${this.manifest.version}`);
@@ -34,8 +36,9 @@ export default class AIChatPlugin extends Plugin {
     this.providerRegistry.initialize(settings);
 
     this.sceneManager = new SceneManager(this.app, settings.scenesFolder);
-    this.archiver = new AutoArchiver(this.app, settings.defaultArchiveFolder);
+    this.archiver = new AutoArchiver(this.app, settings.defaultArchiveFolder, settings.scenesFolder);
     this.conversationManager = new ConversationManager(settings.maxContextMessages);
+    this.ragManager = new RAGManager(this.app, settings);
 
     // 注册聊天视图
     this.registerView(
@@ -64,9 +67,10 @@ export default class AIChatPlugin extends Plugin {
       callback: () => this.newChat(),
     });
 
-    // 在 layout ready 后初始化场景管理器
+    // 在 layout ready 后初始化场景管理器和 RAG
     this.app.workspace.onLayoutReady(async () => {
       await this.sceneManager.initialize();
+      await this.ragManager.initialize();
     });
   }
 

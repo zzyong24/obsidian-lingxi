@@ -9,10 +9,12 @@ import { App, TFolder } from 'obsidian';
 export class AutoArchiver {
   private app: App;
   private defaultFolder: string;
+  private scenesFolder: string;
 
-  constructor(app: App, defaultFolder: string) {
+  constructor(app: App, defaultFolder: string, scenesFolder: string) {
     this.app = app;
     this.defaultFolder = defaultFolder;
+    this.scenesFolder = scenesFolder;
   }
 
   /**
@@ -21,8 +23,8 @@ export class AutoArchiver {
   async archive(options: ArchiveOptions): Promise<ArchiveResult> {
     const { content, skill, title, tags } = options;
 
-    // 确定目标文件夹
-    const folder = skill?.outputFolder || this.defaultFolder;
+    // 确定目标文件夹：优先使用场景内的 _output 子目录
+    const folder = this.resolveOutputFolder(skill);
     await this.ensureFolder(folder);
 
     // 生成文件名
@@ -48,12 +50,37 @@ export class AutoArchiver {
   }
 
   /**
-   * 确保文件夹存在
+   * 解析归档输出目录
+   * 优先级：场景目录/_output/{skill.outputFolder} > 场景目录/_output > 默认归档目录
+   */
+  private resolveOutputFolder(skill?: Skill): string {
+    if (skill?.sceneId) {
+      const sceneOutputBase = `${this.scenesFolder}/${skill.sceneId}/_output`;
+      if (skill.outputFolder) {
+        return `${sceneOutputBase}/${skill.outputFolder}`;
+      }
+      return sceneOutputBase;
+    }
+    // 无场景信息时使用默认归档目录
+    return skill?.outputFolder || this.defaultFolder;
+  }
+
+  /**
+   * 确保文件夹存在（支持多级目录递归创建）
    */
   private async ensureFolder(folderPath: string): Promise<void> {
     const existing = this.app.vault.getAbstractFileByPath(folderPath);
     if (!existing) {
-      await this.app.vault.createFolder(folderPath);
+      // 递归创建多级目录
+      const parts = folderPath.split('/');
+      let current = '';
+      for (const part of parts) {
+        current = current ? `${current}/${part}` : part;
+        const folder = this.app.vault.getAbstractFileByPath(current);
+        if (!folder) {
+          await this.app.vault.createFolder(current);
+        }
+      }
     }
   }
 

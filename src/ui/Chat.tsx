@@ -14,6 +14,7 @@ import { ConversationManager } from '@/conversation/ConversationManager';
 import { ProviderRegistry, OpenAICompatibleProvider } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
+import { RAGManager } from '@/search/RAGManager';
 import { getSettings } from '@/settings';
 import { getMessageText } from '@/utils/markdown';
 import { App, Notice } from 'obsidian';
@@ -23,6 +24,7 @@ interface ChatProps {
   providerRegistry: ProviderRegistry;
   sceneManager: SceneManager;
   archiver: AutoArchiver;
+  ragManager: RAGManager;
   conversationManager: ConversationManager;
   onNewChat: () => void;
 }
@@ -32,6 +34,7 @@ export const Chat: React.FC<ChatProps> = ({
   providerRegistry,
   sceneManager,
   archiver,
+  ragManager,
   conversationManager,
   onNewChat,
 }) => {
@@ -141,12 +144,27 @@ export const Chat: React.FC<ChatProps> = ({
         activeSkill || undefined,
       );
 
+      // RAG 检索：根据用户输入检索相关知识片段
+      let ragContext = '';
+      try {
+        ragContext = await ragManager.retrieve(text);
+      } catch (error) {
+        console.error('[Lingxi] RAG 检索失败:', error);
+      }
+
       // 构建消息列表
       const contextMessages = conversationManager.getContextMessages();
       const messagesToSend: ChatMessage[] = [];
 
       if (systemPrompt) {
-        messagesToSend.push({ role: 'system', content: systemPrompt });
+        // 将 RAG 检索结果拼入 System Prompt
+        const fullSystemPrompt = ragContext
+          ? `${systemPrompt}\n\n---\n\n${ragContext}`
+          : systemPrompt;
+        messagesToSend.push({ role: 'system', content: fullSystemPrompt });
+      } else if (ragContext) {
+        // 无 System Prompt 但有 RAG 结果
+        messagesToSend.push({ role: 'system', content: ragContext });
       }
 
       // 添加非 system 消息
@@ -224,7 +242,7 @@ export const Chat: React.FC<ChatProps> = ({
     }
   }, [
     isLoading, currentModel, providerRegistry, conversationManager,
-    selectedScene, selectedSkill, sceneManager, settings, archiver, syncMessages,
+    selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager, syncMessages,
   ]);
 
   /**

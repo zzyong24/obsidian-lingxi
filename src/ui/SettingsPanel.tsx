@@ -169,11 +169,124 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
       <div className="ai-chat-settings-field ai-chat-settings-toggle">
         <label>Skill 模式自动归档</label>
-        <input
-          type="checkbox"
-          checked={localSettings.autoArchive}
-          onChange={(e) => updateSetting('autoArchive', e.target.checked)}
-        />
+        <label className="ai-chat-switch">
+          <input
+            type="checkbox"
+            checked={localSettings.autoArchive}
+            onChange={(e) => updateSetting('autoArchive', e.target.checked)}
+          />
+          <span className="ai-chat-switch-slider" />
+        </label>
+      </div>
+
+      {/* RAG 知识检索设置 */}
+      <h3>知识检索（RAG）</h3>
+      <div className="ai-chat-rag-card">
+        {/* 启用开关 */}
+        <div className="ai-chat-rag-toggle-row">
+          <div className="ai-chat-rag-toggle-info">
+            <span className="ai-chat-rag-toggle-label">启用知识检索</span>
+            <span className="ai-chat-rag-toggle-desc">
+              启用后，AI 对话时会自动从你的 Vault 笔记中检索相关内容作为参考
+            </span>
+          </div>
+          <label className="ai-chat-switch">
+            <input
+              type="checkbox"
+              checked={localSettings.ragEnabled}
+              onChange={(e) => updateSetting('ragEnabled', e.target.checked)}
+            />
+            <span className="ai-chat-switch-slider" />
+          </label>
+        </div>
+
+        {localSettings.ragEnabled && (
+          <div className="ai-chat-rag-body">
+            {/* Embedding 配置区 */}
+            <div className="ai-chat-rag-section">
+              <div className="ai-chat-rag-section-title">🔗 Embedding 配置</div>
+              <div className="ai-chat-rag-grid">
+                <div className="ai-chat-settings-field">
+                  <label>提供商</label>
+                  <select
+                    value={localSettings.ragEmbeddingProvider}
+                    onChange={(e) => updateSetting('ragEmbeddingProvider', e.target.value)}
+                  >
+                    <option value="">请选择...</option>
+                    {localSettings.providers
+                      .filter(p => p.apiKey)
+                      .map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </select>
+                  <small className="ai-chat-settings-hint">
+                    选择一个已配置 API Key 的提供商
+                  </small>
+                </div>
+
+                <div className="ai-chat-settings-field">
+                  <label>模型</label>
+                  <input
+                    type="text"
+                    value={localSettings.ragEmbeddingModel}
+                    onChange={(e) => updateSetting('ragEmbeddingModel', e.target.value)}
+                    placeholder="如：text-embedding-v3"
+                  />
+                  <small className="ai-chat-settings-hint">
+                    通义千问: text-embedding-v3 | 智谱: embedding-3
+                  </small>
+                </div>
+              </div>
+            </div>
+
+            {/* 检索参数区 */}
+            <div className="ai-chat-rag-section">
+              <div className="ai-chat-rag-section-title">⚙️ 检索参数</div>
+
+              <div className="ai-chat-settings-field">
+                <div className="ai-chat-rag-slider-header">
+                  <label>检索结果数量</label>
+                  <span className="ai-chat-rag-slider-value">{localSettings.ragTopK}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={localSettings.ragTopK}
+                  onChange={(e) => updateSetting('ragTopK', parseInt(e.target.value))}
+                  className="ai-chat-rag-range"
+                />
+                <div className="ai-chat-rag-range-labels">
+                  <span>1（精简）</span>
+                  <span>10（丰富）</span>
+                </div>
+              </div>
+
+              <div className="ai-chat-settings-field">
+                <div className="ai-chat-rag-slider-header">
+                  <label>相似度阈值</label>
+                  <span className="ai-chat-rag-slider-value">{localSettings.ragSimilarityThreshold}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={localSettings.ragSimilarityThreshold}
+                  onChange={(e) => updateSetting('ragSimilarityThreshold', parseFloat(e.target.value))}
+                  className="ai-chat-rag-range"
+                />
+                <div className="ai-chat-rag-range-labels">
+                  <span>0（高召回）</span>
+                  <span>1（高精确）</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 界面设置 */}
@@ -190,11 +303,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </div>
       <div className="ai-chat-settings-field ai-chat-settings-toggle">
         <label>流式输出</label>
-        <input
-          type="checkbox"
-          checked={localSettings.streamOutput}
-          onChange={(e) => updateSetting('streamOutput', e.target.checked)}
-        />
+        <label className="ai-chat-switch">
+          <input
+            type="checkbox"
+            checked={localSettings.streamOutput}
+            onChange={(e) => updateSetting('streamOutput', e.target.checked)}
+          />
+          <span className="ai-chat-switch-slider" />
+        </label>
       </div>
       <div className="ai-chat-settings-field">
         <label>温度 ({localSettings.temperature})</label>

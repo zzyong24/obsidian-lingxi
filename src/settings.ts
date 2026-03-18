@@ -77,5 +77,9 @@ export function sanitizeSettings(saved: Partial<AIChatSettings> | null): AIChatS
   result.temperature = Math.max(0, Math.min(2, Number(result.temperature) || 0.7));
   result.maxContextMessages = Math.max(1, Math.min(100, Number(result.maxContextMessages) || 20));
 
+  // RAG 设置校验
+  result.ragTopK = Math.max(1, Math.min(10, Number(result.ragTopK) || 3));
+  result.ragSimilarityThreshold = Math.max(0, Math.min(1, Number(result.ragSimilarityThreshold) || 0.3));
+
   return result;
 }
