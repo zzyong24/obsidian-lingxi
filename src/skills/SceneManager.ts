@@ -16,7 +16,7 @@
  *     └── _skills/
  */
 
-import { Scene, SceneIndex, Skill } from '@/types';
+import { Scene, Skill } from '@/types';
 import { App, TFile, TFolder } from 'obsidian';
 
 export class SceneManager {
@@ -50,7 +50,7 @@ export class SceneManager {
 
     const rootFolder = this.app.vault.getAbstractFileByPath(this.scenesFolder);
     if (!rootFolder || !(rootFolder instanceof TFolder)) {
-      console.log(`[AI Chat] 场景根文件夹不存在: ${this.scenesFolder}`);
+      console.debug(`[AI Chat] 场景根文件夹不存在: ${this.scenesFolder}`);
       return;
     }
 
@@ -67,7 +67,7 @@ export class SceneManager {
       }
     }
 
-    console.log(`[AI Chat] 已加载 ${this.scenes.size} 个场景，共 ${this.getAllSkills().length} 个 Skill`);
+    console.debug(`[AI Chat] 已加载 ${this.scenes.size} 个场景，共 ${this.getAllSkills().length} 个 Skill`);
 
     // 通知订阅者扫描完成（用于热更新时同步归档映射等）
     for (const cb of this.onScanCompleteCallbacks) {
@@ -102,7 +102,7 @@ export class SceneManager {
     }
 
     this.globalRulesContent = contents.join('\n\n');
-    console.log(`[AI Chat] 已加载 ${contents.length} 条全局 Rules`);
+    console.debug(`[AI Chat] 已加载 ${contents.length} 条全局 Rules`);
   }
 
   /**
@@ -121,7 +121,7 @@ export class SceneManager {
     try {
       const content = await this.app.vault.read(indexFile);
       this.sceneIndexContent = content.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
-      console.log(`[AI Chat] 已加载场景索引`);
+      console.debug(`[AI Chat] 已加载场景索引`);
     } catch (error) {
       console.error(`[AI Chat] 加载场景索引失败:`, error);
     }
@@ -212,7 +212,7 @@ export class SceneManager {
     };
 
     this.scenes.set(sceneId, scene);
-    console.log(`[AI Chat] 场景「${sceneIcon} ${sceneName}」加载了 ${skills.length} 个 Skill`);
+    console.debug(`[AI Chat] 场景「${sceneIcon} ${sceneName}」加载了 ${skills.length} 个 Skill`);
   }
 
   /**
@@ -327,9 +327,9 @@ export class SceneManager {
     const shouldReload = (path: string) => path.startsWith(this.scenesFolder);
 
     // 任何变更都触发全量重扫（简单可靠）
-    const debouncedReload = this.debounce(async () => {
-      console.log(`[AI Chat] 检测到场景文件变更，重新扫描...`);
-      await this.fullScan();
+    const debouncedReload = this.debounce(() => {
+      console.debug(`[AI Chat] 检测到场景文件变更，重新扫描...`);
+      void this.fullScan();
     }, 500);
 
     this.app.vault.on('modify', (file) => {

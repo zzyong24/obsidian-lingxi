@@ -4,8 +4,8 @@
  */
 
 import { CHAT_VIEWTYPE, PLUGIN_DISPLAY_NAME } from '@/constants';
-import { AIChatSettings, DEFAULT_SETTINGS } from '@/types';
-import { getSettings, setSettings, sanitizeSettings, updateSettings } from '@/settings';
+import { AIChatSettings } from '@/types';
+import { getSettings, setSettings, sanitizeSettings } from '@/settings';
 import { ProviderRegistry } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
@@ -24,7 +24,7 @@ export default class AIChatPlugin extends Plugin {
   ragManager: RAGManager;
 
   async onload(): Promise<void> {
-    console.log(`[AI Chat] 加载插件 v${this.manifest.version}`);
+    console.debug(`[AI Chat] 加载插件 v${this.manifest.version}`);
 
     // 加载设置
     await this.loadPluginSettings();
@@ -57,25 +57,27 @@ export default class AIChatPlugin extends Plugin {
     // 注册命令
     this.addCommand({
       id: 'open-ai-chat',
-      name: `打开 ${PLUGIN_DISPLAY_NAME}`,
+      name: `Open ${PLUGIN_DISPLAY_NAME}`,
       callback: () => this.activateView(),
     });
 
     this.addCommand({
       id: 'new-ai-chat',
-      name: '新建 AI 对话',
+      name: 'New conversation',
       callback: () => this.newChat(),
     });
 
     // 在 layout ready 后初始化场景管理器和 RAG
-    this.app.workspace.onLayoutReady(async () => {
-      await this.sceneManager.initialize();
-      await this.ragManager.initialize();
+    this.app.workspace.onLayoutReady(() => {
+      void (async () => {
+        await this.sceneManager.initialize();
+        await this.ragManager.initialize();
+      })();
     });
   }
 
-  async onunload(): Promise<void> {
-    console.log('[AI Chat] 卸载插件');
+  onunload(): void {
+    console.debug('[AI Chat] 卸载插件');
   }
 
   /**
@@ -108,7 +110,8 @@ export default class AIChatPlugin extends Plugin {
     // 刷新视图
     const leaf = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE)[0];
     if (leaf) {
-      (leaf.view as ChatView).updateView();
+      const chatView = leaf.view as unknown as ChatView;
+      chatView.updateView();
     }
   }
 

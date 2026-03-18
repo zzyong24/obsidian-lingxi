@@ -7,7 +7,7 @@ import { ChatMessage, Conversation } from '@/types';
 
 /** 生成简单 UUID */
 function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
 export class ConversationManager {

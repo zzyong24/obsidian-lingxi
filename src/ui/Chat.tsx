@@ -6,18 +6,17 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ChatMessage, ContentPart, Skill, Scene, AIChatSettings, StreamChunk, NoteReference } from '@/types';
+import { ChatMessage, ContentPart, Skill, Scene, NoteReference } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { InputArea, ImageAttachment } from './InputArea';
 import { TFile } from 'obsidian';
 import { ModelSelector } from './ModelSelector';
 import { ConversationManager } from '@/conversation/ConversationManager';
-import { ProviderRegistry, OpenAICompatibleProvider } from '@/providers';
+import { ProviderRegistry } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
 import { RAGManager } from '@/search/RAGManager';
 import { getSettings } from '@/settings';
-import { getMessageText } from '@/utils/markdown';
 import { App, Notice } from 'obsidian';
 
 interface ChatProps {

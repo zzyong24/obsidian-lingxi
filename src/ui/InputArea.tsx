@@ -35,7 +35,7 @@ function fileToDataUrl(file: File): Promise<string> {
 
 /** 生成简单唯一 ID */
 function genId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
 
 export const InputArea: React.FC<InputAreaProps> = ({
@@ -62,11 +62,17 @@ export const InputArea: React.FC<InputAreaProps> = ({
   const noteSearchRef = useRef<HTMLDivElement>(null);
 
   // 自动调整 textarea 高度
+  const [textareaHeight, setTextareaHeight] = useState<string>('auto');
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+      setTextareaHeight('auto');
+      // 延迟读取 scrollHeight，确保在 auto 生效后
+      requestAnimationFrame(() => {
+        if (textarea) {
+          setTextareaHeight(Math.min(textarea.scrollHeight, 200) + 'px');
+        }
+      });
     }
   }, [text]);
 
@@ -229,7 +235,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
     closeNoteSearch();
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      setTextareaHeight('auto');
     }
   }, [text, images, noteRefs, isLoading, onSend, closeNoteSearch]);
 
@@ -457,6 +463,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
         <textarea
           ref={textareaRef}
           className="ai-chat-textarea"
+          style={{ height: textareaHeight }}
           value={text}
           onChange={handleChange}
           onKeyDown={handleKeyDown}

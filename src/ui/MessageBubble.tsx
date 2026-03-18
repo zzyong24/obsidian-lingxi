@@ -5,7 +5,6 @@
 
 import React, { useCallback } from 'react';
 import { ChatMessage, ContentPart } from '@/types';
-import { getMessageText } from '@/utils/markdown';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -39,7 +38,7 @@ function renderMarkdown(text: string): React.ReactNode {
     const headingMatch = para.match(/^(#{1,6})\s+(.*)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+      const Tag = `h${level}` as keyof React.JSX.IntrinsicElements;
       return <Tag key={i}>{headingMatch[2]}</Tag>;
     }
 
@@ -124,6 +123,11 @@ function getMessageImages(content: string | ContentPart[]): string[] {
   return content
     .filter(p => p.type === 'image_url' && p.image_url?.url)
     .map(p => p.image_url!.url);
+}
+
+function getMessageText(content: string | ContentPart[]): string {
+  if (typeof content === 'string') return content;
+  return content.map(p => p.text || '').join('');
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({

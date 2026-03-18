@@ -30,7 +30,7 @@ export class RulesLoader {
   async loadRules(): Promise<void> {
     const folder = this.app.vault.getAbstractFileByPath(this.rulesFolder);
     if (!folder || !(folder instanceof TFolder)) {
-      console.log(`[AI Chat] Rules 文件夹不存在: ${this.rulesFolder}`);
+      console.debug(`[AI Chat] Rules 文件夹不存在: ${this.rulesFolder}`);
       this.rulesContent = '';
       return;
     }
@@ -52,16 +52,16 @@ export class RulesLoader {
     }
 
     this.rulesContent = contents.join('\n\n');
-    console.log(`[AI Chat] 已加载 ${contents.length} 条 Rules`);
+    console.debug(`[AI Chat] 已加载 ${contents.length} 条 Rules`);
   }
 
   /**
    * 监听文件变更
    */
   private watchForChanges(): void {
-    const reload = async (file: unknown) => {
+    const reload = (file: unknown) => {
       if (file instanceof TFile && file.path.startsWith(this.rulesFolder)) {
-        await this.loadRules();
+        void this.loadRules();
       }
     };
 

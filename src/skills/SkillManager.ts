@@ -4,7 +4,7 @@
  */
 
 import { Skill } from '@/types';
-import { App, TFile, TFolder, Vault } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
@@ -31,11 +31,11 @@ export class SkillManager {
     this.skills.clear();
     const folder = this.app.vault.getAbstractFileByPath(this.skillsFolder);
     if (!folder || !(folder instanceof TFolder)) {
-      console.log(`[AI Chat] Skill 文件夹不存在: ${this.skillsFolder}`);
+      console.debug(`[AI Chat] Skill 文件夹不存在: ${this.skillsFolder}`);
       return;
     }
     await this.scanFolder(folder);
-    console.log(`[AI Chat] 已加载 ${this.skills.size} 个 Skill`);
+    console.debug(`[AI Chat] 已加载 ${this.skills.size} 个 Skill`);
   }
 
   /**
@@ -151,15 +151,15 @@ export class SkillManager {
    * 监听文件变更，热更新 Skill
    */
   private watchForChanges(): void {
-    this.app.vault.on('modify', async (file) => {
+    this.app.vault.on('modify', (file) => {
       if (file instanceof TFile && file.path.startsWith(this.skillsFolder)) {
-        await this.loadSkill(file);
+        void this.loadSkill(file);
       }
     });
 
-    this.app.vault.on('create', async (file) => {
+    this.app.vault.on('create', (file) => {
       if (file instanceof TFile && file.path.startsWith(this.skillsFolder) && file.extension === 'md') {
-        await this.loadSkill(file);
+        void this.loadSkill(file);
       }
     });
 
@@ -169,14 +169,14 @@ export class SkillManager {
       }
     });
 
-    this.app.vault.on('rename', async (file, oldPath) => {
+    this.app.vault.on('rename', (file, oldPath) => {
       if (oldPath.startsWith(this.skillsFolder)) {
         // 删除旧的
         const oldBasename = oldPath.split('/').pop()?.replace('.md', '') || '';
         this.skills.delete(oldBasename);
       }
       if (file instanceof TFile && file.path.startsWith(this.skillsFolder) && file.extension === 'md') {
-        await this.loadSkill(file);
+        void this.loadSkill(file);
       }
     });
   }

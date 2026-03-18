@@ -4,7 +4,7 @@
  */
 
 import { ArchiveOptions, ArchiveResult, Skill } from '@/types';
-import { App, TFolder } from 'obsidian';
+import { App } from 'obsidian';
 
 export class AutoArchiver {
   private app: App;
@@ -179,7 +179,7 @@ export class AutoArchiver {
         if (skipLabels.includes(label)) continue;
 
         let value = boldMatch[2]
-          .replace(/\（[^）]*URL[^）]*\）/g, '')  // 去除含 URL 的中文括号
+          .replace(/（[^）]*URL[^）]*）/g, '')  // 去除含 URL 的中文括号
           .replace(/\([^)]*http[^)]*\)/g, '')     // 去除含 URL 的英文括号
           .replace(/https?:\/\/\S+/g, '')          // 去除裸 URL
           .replace(/\*+/g, '')

@@ -11,7 +11,7 @@
 import { App, TFile, TFolder, Notice } from 'obsidian';
 import { EmbeddingService } from './EmbeddingService';
 import { VectorStore, SearchResult } from './VectorStore';
-import { ProviderConfig, AIChatSettings } from '@/types';
+import { AIChatSettings } from '@/types';
 
 /** 文本片段（用于切分） */
 interface TextChunk {
@@ -29,7 +29,6 @@ export class RAGManager {
 
   /** 排除的目录前缀（不索引这些目录下的文件） */
   private excludePaths: string[] = [
-    '.obsidian',
     'AI笔记',
   ];
 
@@ -44,14 +43,14 @@ export class RAGManager {
    */
   async initialize(): Promise<void> {
     if (!this.settings.ragEnabled) {
-      console.log('[Lingxi RAG] RAG 未启用');
+      console.debug('[Lingxi RAG] RAG 未启用');
       return;
     }
 
     // 查找 Embedding 提供商
     const provider = this.settings.providers.find(p => p.id === this.settings.ragEmbeddingProvider);
     if (!provider || !provider.apiKey) {
-      console.log('[Lingxi RAG] 未配置 Embedding 提供商或 API Key');
+      console.debug('[Lingxi RAG] 未配置 Embedding 提供商或 API Key');
       return;
     }
 
@@ -64,7 +63,7 @@ export class RAGManager {
 
     // 排除场景目录和归档目录
     this.excludePaths = [
-      '.obsidian',
+      this.app.vault.configDir,
       this.settings.defaultArchiveFolder,
       this.settings.scenesFolder,
     ];
@@ -72,14 +71,12 @@ export class RAGManager {
     this.initialized = true;
 
     // 启动增量索引（异步，不阻塞启动）
-    this.buildIndex().catch(err => {
-      console.error('[Lingxi RAG] 后台索引构建失败:', err);
-    });
+    void this.buildIndex();
 
     // 监听文件变更
     this.watchFileChanges();
 
-    console.log('[Lingxi RAG] RAG 系统已初始化');
+    console.debug('[Lingxi RAG] RAG 系统已初始化');
   }
 
   /**
@@ -90,7 +87,7 @@ export class RAGManager {
     if (!this.embeddingService || this.isIndexing) return;
 
     this.isIndexing = true;
-    console.log('[Lingxi RAG] 开始增量索引构建...');
+    console.debug('[Lingxi RAG] 开始增量索引构建...');
 
     try {
       const files = this.app.vault.getMarkdownFiles();
@@ -126,7 +123,7 @@ export class RAGManager {
 
       await this.vectorStore.save();
       const stats = this.vectorStore.getStats();
-      console.log(`[Lingxi RAG] 索引完成：新增/更新 ${indexed} 个文件，跳过 ${skipped} 个，总计 ${stats.totalFiles} 个文件 ${stats.totalRecords} 条片段`);
+      console.debug(`[Lingxi RAG] 索引完成：新增/更新 ${indexed} 个文件，跳过 ${skipped} 个，总计 ${stats.totalFiles} 个文件 ${stats.totalRecords} 条片段`);
     } finally {
       this.isIndexing = false;
     }
@@ -284,16 +281,18 @@ export class RAGManager {
     };
 
     // 文件修改时重新索引
-    this.app.vault.on('modify', async (file) => {
+    this.app.vault.on('modify', (file) => {
       if (!(file instanceof TFile) || file.extension !== 'md') return;
       if (this.shouldExclude(file.path) || !this.embeddingService) return;
 
-      try {
-        await this.indexFile(file);
-        debouncedSave();
-      } catch (error) {
-        console.error(`[Lingxi RAG] 实时索引更新失败: ${file.path}`, error);
-      }
+      void (async () => {
+        try {
+          await this.indexFile(file);
+          debouncedSave();
+        } catch (error) {
+          console.error(`[Lingxi RAG] 实时索引更新失败: ${file.path}`, error);
+        }
+      })();
     });
 
     // 文件删除时移除索引
@@ -304,15 +303,17 @@ export class RAGManager {
     });
 
     // 文件重命名时更新索引
-    this.app.vault.on('rename', async (file, oldPath) => {
+    this.app.vault.on('rename', (file, oldPath) => {
       if (!(file instanceof TFile) || file.extension !== 'md') return;
       this.vectorStore.removeFile(oldPath);
       if (!this.shouldExclude(file.path) && this.embeddingService) {
-        try {
-          await this.indexFile(file);
-        } catch (error) {
-          console.error(`[Lingxi RAG] 重命名后索引更新失败: ${file.path}`, error);
-        }
+        void (async () => {
+          try {
+            await this.indexFile(file);
+          } catch (error) {
+            console.error(`[Lingxi RAG] 重命名后索引更新失败: ${file.path}`, error);
+          }
+        })();
       }
       debouncedSave();
     });

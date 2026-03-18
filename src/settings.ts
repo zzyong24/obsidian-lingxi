@@ -64,7 +64,7 @@ export function sanitizeSettings(saved: Partial<AIChatSettings> | null): AIChatS
   const result = { ...DEFAULT_SETTINGS, ...saved };
 
   // 确保 providers 数组中包含所有预设的提供商
-  const defaultProviderIds = DEFAULT_SETTINGS.providers.map(p => p.id);
+  const defaultIds = DEFAULT_SETTINGS.providers.map(p => p.id);
   const savedProviderIds = new Set((result.providers || []).map(p => p.id));
 
   for (const defaultProvider of DEFAULT_SETTINGS.providers) {

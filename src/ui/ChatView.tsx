@@ -28,16 +28,17 @@ export default class ChatView extends ItemView {
   }
 
   getTitle(): string {
-    return `${PLUGIN_DISPLAY_NAME} Chat`;
+    return PLUGIN_DISPLAY_NAME;
   }
 
   getDisplayText(): string {
     return PLUGIN_DISPLAY_NAME;
   }
 
-  async onOpen(): Promise<void> {
+  onOpen(): Promise<void> {
     this.root = createRoot(this.containerEl.children[1]);
     this.renderView();
+    return Promise.resolve();
   }
 
   private renderView(): void {
@@ -62,10 +63,11 @@ export default class ChatView extends ItemView {
     this.renderView();
   }
 
-  async onClose(): Promise<void> {
+  onClose(): Promise<void> {
     if (this.root) {
       this.root.unmount();
       this.root = null;
     }
+    return Promise.resolve();
   }
 }

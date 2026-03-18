@@ -1,10 +1,12 @@
 /**
  * 本地向量存储
  * 使用 JSON 文件存储向量索引，通过余弦相似度进行检索
- * 存储在 .obsidian/plugins/lingxi/ 目录下
+ * 存储在 Vault configDir 目录下
  */
 
-import { App } from 'obsidian';
+import { App, TFile } from 'obsidian';
+
+const INDEX_VERSION = 1;
 
 /** 单个文档的向量记录 */
 export interface VectorRecord {
@@ -42,9 +44,6 @@ export interface SearchResult {
   chunkIndex: number;
 }
 
-const INDEX_FILE = '.obsidian/plugins/lingxi/vector-index.json';
-const INDEX_VERSION = 1;
-
 export class VectorStore {
   private app: App;
   private index: VectorIndex;
@@ -53,6 +52,13 @@ export class VectorStore {
   constructor(app: App) {
     this.app = app;
     this.index = this.createEmptyIndex('');
+  }
+
+  /**
+   * 获取索引文件路径
+   */
+  private getIndexFilePath(): string {
+    return `${this.app.vault.configDir}/plugins/lingxi/vector-index.json`;
   }
 
   /**
@@ -73,14 +79,15 @@ export class VectorStore {
    */
   async load(currentModel: string): Promise<void> {
     try {
-      const file = this.app.vault.getAbstractFileByPath(INDEX_FILE);
-      if (file) {
-        const content = await this.app.vault.read(file as any);
+      const indexFile = this.getIndexFilePath();
+      const file = this.app.vault.getAbstractFileByPath(indexFile);
+      if (file instanceof TFile) {
+        const content = await this.app.vault.read(file);
         const data = JSON.parse(content) as VectorIndex;
 
         // 模型变更时需要重建索引
         if (data.embeddingModel !== currentModel || data.version !== INDEX_VERSION) {
-          console.log('[Lingxi RAG] Embedding 模型变更或索引版本不匹配，清空索引');
+          console.debug('[Lingxi RAG] Embedding 模型变更或索引版本不匹配，清空索引');
           this.index = this.createEmptyIndex(currentModel);
           this.dirty = true;
         } else {
@@ -93,7 +100,7 @@ export class VectorStore {
       console.error('[Lingxi RAG] 加载向量索引失败:', error);
       this.index = this.createEmptyIndex(currentModel);
     }
-    console.log(`[Lingxi RAG] 索引已加载，包含 ${this.index.records.length} 条记录`);
+    console.debug(`[Lingxi RAG] 索引已加载，包含 ${this.index.records.length} 条记录`);
   }
 
   /**
@@ -103,16 +110,17 @@ export class VectorStore {
     if (!this.dirty) return;
 
     try {
+      const indexFile = this.getIndexFilePath();
       const content = JSON.stringify(this.index);
-      const file = this.app.vault.getAbstractFileByPath(INDEX_FILE);
-      if (file) {
-        await this.app.vault.modify(file as any, content);
+      const file = this.app.vault.getAbstractFileByPath(indexFile);
+      if (file instanceof TFile) {
+        await this.app.vault.modify(file, content);
       } else {
         // 确保目录存在
-        await this.app.vault.adapter.write(INDEX_FILE, content);
+        await this.app.vault.adapter.write(indexFile, content);
       }
       this.dirty = false;
-      console.log(`[Lingxi RAG] 索引已保存，共 ${this.index.records.length} 条记录`);
+      console.debug(`[Lingxi RAG] 索引已保存，共 ${this.index.records.length} 条记录`);
     } catch (error) {
       console.error('[Lingxi RAG] 保存向量索引失败:', error);
     }
