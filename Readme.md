@@ -1,14 +1,3 @@
----
-type: "note"
-topic: "product"
-created: "2026-03-17 22:57:40"
-modified: "2026-03-18 00:03:00"
-tags: ["note", "crafted", "product", "obsidian-plugin"]
-origin: "crafted"
-source: "mcp"
-status: "active"
----
-
 <p align="center">
   <img src="./images/logo.png" alt="灵犀 Logo" width="120"/>
 </p>
