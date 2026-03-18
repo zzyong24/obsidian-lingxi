@@ -1,5 +1,4 @@
 <p align="center">
-  <img src="./images/logo.png" alt="灵犀 Logo" width="120"/>
 </p>
 
 <h1 align="center">灵犀 · Lingxi</h1>

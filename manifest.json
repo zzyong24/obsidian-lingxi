@@ -1,9 +1,9 @@
 {
 	"id": "lingxi",
-	"name": "灵犀 Lingxi",
+    "name": "Lingxi",
 	"version": "0.1.0",
 	"minAppVersion": "0.15.0",
-	"description": "Skill 驱动的 AI 对话插件 — 心有灵犀，让 Obsidian 成为你的 AI 第二大脑",
+"description": "Skill-driven AI chat plugin — chat with AI in the sidebar, auto-archive conversations as structured notes. Supports DeepSeek, Qwen, Doubao, Kimi, Zhipu and more Chinese LLMs.",
 	"author": "月明水清深",
 	"authorUrl": "https://github.com/zzyong24",
 	"isDesktopOnly": false
