@@ -3,7 +3,7 @@
  * 一个类覆盖所有国内模型（DeepSeek、通义千问、豆包、Kimi、智谱）
  */
 
-import { ChatMessage, ChatOptions, StreamChunk, ContentPart } from '@/types';
+import { ChatMessage, ChatOptions, StreamChunk } from '@/types';
 import { requestUrl } from 'obsidian';
 
 export class OpenAICompatibleProvider {

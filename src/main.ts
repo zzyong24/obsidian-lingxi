@@ -148,7 +148,7 @@ export default class AIChatPlugin extends Plugin {
   async testProviderConnection(providerId: string): Promise<boolean> {
     const provider = this.providerRegistry.getProvider(providerId);
     if (!provider) {
-      new Notice('未找到该提供商，请确认 API Key 已配置');
+      new Notice('未找到该提供商，请确认 API key 已配置');
       return false;
     }
     try {
@@ -156,7 +156,7 @@ export default class AIChatPlugin extends Plugin {
       if (result) {
         new Notice('✅ 连接成功！');
       } else {
-        new Notice('❌ 连接失败，请检查 API Key 和 Base URL');
+        new Notice('❌ 连接失败，请检查 API key 和 base URL');
       }
       return result;
     } catch (error) {

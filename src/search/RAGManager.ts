@@ -324,7 +324,7 @@ export class RAGManager {
    */
   async rebuildIndex(): Promise<void> {
     if (!this.initialized) {
-      new Notice('RAG 未启用，请先在设置中开启');
+      new Notice('知识索引未启用，请先在设置中开启');
       return;
     }
 

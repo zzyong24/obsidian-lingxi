@@ -78,7 +78,7 @@ export const Chat: React.FC<ChatProps> = ({
     // 解析模型
     const resolved = providerRegistry.resolveModel(currentModel);
     if (!resolved) {
-      new Notice('请先配置模型 API Key');
+      new Notice('请先配置模型 API key');
       return;
     }
 
