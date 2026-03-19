@@ -27,7 +27,7 @@ export class OpenAICompatibleProvider {
         };
       }
       // 多模态消息（文本 + 图片）
-      const parts = (msg.content as ContentPart[]).map(part => {
+      const parts = msg.content.map(part => {
         if (part.type === 'text') {
           return { type: 'text', text: part.text };
         }

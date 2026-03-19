@@ -141,7 +141,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const images = getMessageImages(message.content);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content);
+    void navigator.clipboard.writeText(content);
     onCopy?.(content);
   }, [content, onCopy]);
 

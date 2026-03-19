@@ -3,7 +3,7 @@
  * 参考 copilot 的 main.ts 架构
  */
 
-import { CHAT_VIEWTYPE, PLUGIN_DISPLAY_NAME } from '@/constants';
+import { CHAT_VIEWTYPE } from '@/constants';
 import { AIChatSettings } from '@/types';
 import { getSettings, setSettings, sanitizeSettings } from '@/settings';
 import { ProviderRegistry } from '@/providers';
@@ -50,20 +50,20 @@ export default class AIChatPlugin extends Plugin {
     this.addSettingTab(new AIChatSettingTab(this.app, this));
 
     // 添加左侧 Ribbon 图标
-    this.addRibbonIcon('message-square', 'Open Lingxi chat', () => {
+    this.addRibbonIcon('message-square', 'Open chat panel', () => {
       void this.activateView();
     });
 
     // 注册命令
     this.addCommand({
       id: 'open-ai-chat',
-      name: 'Open Lingxi chat',
+      name: 'Open chat',
       callback: () => { void this.activateView(); },
     });
 
     this.addCommand({
       id: 'new-ai-chat',
-      name: 'New Lingxi conversation',
+      name: 'New conversation',
       callback: () => this.newChat(),
     });
 
@@ -98,7 +98,7 @@ export default class AIChatPlugin extends Plugin {
     // 显示已有的视图
     const existingLeaves = this.app.workspace.getLeavesOfType(CHAT_VIEWTYPE);
     if (existingLeaves.length > 0) {
-      this.app.workspace.revealLeaf(existingLeaves[0]);
+      void this.app.workspace.revealLeaf(existingLeaves[0]);
     }
   }
 

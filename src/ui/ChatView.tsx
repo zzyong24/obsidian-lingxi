@@ -3,7 +3,7 @@
  * 参考 copilot 的 CopilotView 实现，注册为侧边栏 Panel
  */
 
-import { CHAT_VIEWTYPE, PLUGIN_DISPLAY_NAME } from '@/constants';
+import { CHAT_VIEWTYPE } from '@/constants';
 import { Chat } from '@/ui/Chat';
 import { ItemView, WorkspaceLeaf } from 'obsidian';
 import * as React from 'react';

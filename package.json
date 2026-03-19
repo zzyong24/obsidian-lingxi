@@ -8,15 +8,24 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
-  "keywords": ["obsidian", "ai", "chat", "lingxi", "skill"],
+  "keywords": [
+    "obsidian",
+    "ai",
+    "chat",
+    "lingxi",
+    "skill"
+  ],
   "author": "月明水清深",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^16.11.6",
     "@types/react": "^18.0.33",
     "@types/react-dom": "^18.0.11",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
     "builtin-modules": "3.3.0",
     "esbuild": "^0.17.3",
+    "eslint": "^10.0.3",
     "obsidian": "^1.2.5",
     "tslib": "2.4.0",
     "typescript": "^5.7.2"
