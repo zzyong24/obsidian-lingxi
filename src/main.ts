@@ -50,20 +50,20 @@ export default class AIChatPlugin extends Plugin {
     this.addSettingTab(new AIChatSettingTab(this.app, this));
 
     // 添加左侧 Ribbon 图标
-    this.addRibbonIcon('message-square', `Open ${PLUGIN_DISPLAY_NAME}`, () => {
-      this.activateView();
+    this.addRibbonIcon('message-square', 'Open Lingxi chat', () => {
+      void this.activateView();
     });
 
     // 注册命令
     this.addCommand({
       id: 'open-ai-chat',
-      name: `Open ${PLUGIN_DISPLAY_NAME}`,
-      callback: () => this.activateView(),
+      name: 'Open Lingxi chat',
+      callback: () => { void this.activateView(); },
     });
 
     this.addCommand({
       id: 'new-ai-chat',
-      name: 'New conversation',
+      name: 'New Lingxi conversation',
       callback: () => this.newChat(),
     });
 

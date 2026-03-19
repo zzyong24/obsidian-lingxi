@@ -197,7 +197,7 @@ export class AutoArchiver {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('>') || trimmed === '---') continue;
 
-      const headingMatch = trimmed.match(/^#{1,6}\s+(?:\p{Extended_Pictographic}[\u200d\ufe0f]*\s*)?(.+)/u);
+      const headingMatch = trimmed.match(/^#{1,6}\s+(?:\p{Extended_Pictographic}(?:\u200d|\ufe0f)*\s*)?(.+)/u);
       if (headingMatch) {
         const title = headingMatch[1]
           .replace(/\*+/g, '')

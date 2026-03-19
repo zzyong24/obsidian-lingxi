@@ -28,11 +28,11 @@ export default class ChatView extends ItemView {
   }
 
   getTitle(): string {
-    return PLUGIN_DISPLAY_NAME;
+    return 'Lingxi';
   }
 
   getDisplayText(): string {
-    return PLUGIN_DISPLAY_NAME;
+    return 'Lingxi';
   }
 
   onOpen(): Promise<void> {

@@ -153,8 +153,8 @@ export class SceneManager {
         sceneIcon = (frontmatter.icon as string) || '';
 
         if (frontmatter.trigger_keywords) {
-          if (typeof frontmatter.trigger_keywords === 'string') {
-            sceneKeywords = (frontmatter.trigger_keywords as string).split(',').map(k => k.trim());
+        if (typeof frontmatter.trigger_keywords === 'string') {
+            sceneKeywords = frontmatter.trigger_keywords.split(',').map(k => k.trim());
           } else if (Array.isArray(frontmatter.trigger_keywords)) {
             sceneKeywords = frontmatter.trigger_keywords as string[];
           }
@@ -260,7 +260,7 @@ export class SceneManager {
     let triggerKeywords: string[] = [];
     if (frontmatter.trigger_keywords) {
       if (typeof frontmatter.trigger_keywords === 'string') {
-        triggerKeywords = (frontmatter.trigger_keywords as string).split(',').map(k => k.trim());
+        triggerKeywords = frontmatter.trigger_keywords.split(',').map(k => k.trim());
       } else if (Array.isArray(frontmatter.trigger_keywords)) {
         triggerKeywords = frontmatter.trigger_keywords as string[];
       }

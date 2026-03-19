@@ -108,7 +108,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
   /** 文件选择回调 */
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    addImages(files);
+    void addImages(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [addImages]);
 
@@ -119,7 +119,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
     if (imageItems.length > 0) {
       e.preventDefault();
       const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[];
-      addImages(files);
+      void addImages(files);
     }
   }, [addImages]);
 
@@ -141,7 +141,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
     e.stopPropagation();
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
-    addImages(files);
+    void addImages(files);
   }, [addImages]);
 
   // ===== 笔记引用处理 =====
