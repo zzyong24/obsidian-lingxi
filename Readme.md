@@ -40,6 +40,7 @@
   - [Directory Structure](#directory-structure)
   - [Skill File Specification](#skill-file-specification)
   - [Using Skills](#using-skills)
+  - [Managing Skills and Scenes via Chat](#managing-skills-and-scenes-via-chat)
 - [🖼️ Image Input](#️-image-input)
 - [☁️ Multi-device Sync: Remotely Save + Tencent Cloud COS](#️-multi-device-sync-remotely-save--tencent-cloud-cos)
 - [⚙️ Settings Overview](#️-settings-overview)
@@ -55,10 +56,12 @@
 |---------|-------------|
 | 🗣️ **Chat & Archive** | Conversations are automatically archived as structured notes |
 | ⚡ **Skill-driven** | Define AI behavior through Markdown Skill templates — flexible and extensible |
-| 🎭 **Scene Management** | Organize Skills and Rules by scene (e.g., Content Creation, Learning) with auto-matching |
+| 🎭 **Scene Management** | Organize Skills and Rules by scene, with intelligent scoring-based matching |
+| 🛠️ **Everything via Chat** | Create, update, delete Skills and Scenes through natural conversation — powered by Function Calling |
+| 💾 **Conversation Persistence** | Chat history is auto-saved to disk and seamlessly restored after restart |
 | 🇨🇳 **Chinese LLM First** | Built-in support for DeepSeek / Qwen / Doubao / Kimi / Zhipu — ready out of the box |
 | 🖼️ **Image Recognition** | Paste or drag images to send to vision models for analysis |
-| 📡 **Streaming Output** | Real-time typewriter-style AI responses for a smooth experience |
+| 📡 **Streaming Output** | Real-time typewriter-style AI responses, with stop generation support |
 | 🔒 **Fully Local Data** | All data stored in your Obsidian Vault — zero cloud dependency |
 | 📱 **Multi-device Sync** | Sync across desktop and mobile with Remotely Save + COS |
 | 🔍 **Knowledge Retrieval (RAG)** | Automatically retrieves relevant knowledge from your Vault notes, enabling AI to answer based on your notes |
@@ -320,6 +323,13 @@ YourVault/
     │   └── general-assistant-rules.md
     ├── _scenes_index.md              # 📋 Scene index (helps AI auto-match scenes)
     │
+    ├── 系统管理/                      # ⚙️ Scene: System Management (built-in)
+    │   ├── _scene.md                 # Scene description
+    │   ├── _rules/
+    │   └── _skills/
+    │       └── 系统/
+    │           └── skill-manager.md  # Built-in Skill Manager (CRUD Skills & Scenes via chat)
+    │
     ├── content-creation/             # 📱 Scene: Content Creation
     │   ├── _scene.md                 # Scene description + workflow + Skills overview
     │   ├── _rules/                   # Scene-level rules
@@ -415,6 +425,58 @@ Simply type a message containing Skill keywords (e.g., "Help me find trending to
 
 Click scene buttons on the welcome page (e.g., "📱 Content Creation") to quickly enter the corresponding scene context. Scene Rules and Skills are activated automatically.
 
+**Keyword Matching Mechanism:**
+
+The plugin uses a **scoring mechanism** for keyword matching, rather than simple first-match:
+
+1. More matching keywords in user message = higher score
+2. Longer keywords have higher weight (avoids short-word false triggers)
+3. System automatically selects the highest-scoring Scene/Skill
+4. Minimum keyword length is 2 characters; single characters won't trigger matching
+
+### Managing Skills and Scenes via Chat
+
+Lingxi includes a built-in **Skill Manager** (powered by Function Calling) that lets you perform all management operations through natural language conversation, without manually creating files:
+
+**Supported Operations:**
+
+| Example | Operation |
+|---------|----------|
+| "Create a reading notes skill" | Guided skill creation |
+| "Update keywords for topic discovery" | Update specific skill |
+| "Delete XX skill" | Delete skill after confirmation |
+| "List my skills" | List all skills |
+| "Create a health management scene" | Create new scene |
+| "Show all scenes" | List scene overview |
+
+**Guided Dialogue Flow:**
+
+```
+User: Help me create a reading notes skill
+
+Lingxi: I've designed this Skill for you, please check:
+
+        📌 Basic Info
+        - Name: Deep Reading Notes
+        - Scene: 📚 Learning
+        - Category: Reading Management
+        - Description: Guide you through deep reading and output structured notes
+        - Keywords: ["reading notes", "book notes", "deep reading"]
+
+        🧠 System Prompt Preview
+        > You are an experienced reading coach who guides users
+        > through deep reading and produces structured notes...
+
+        Reply "Confirm" to create, or tell me what to adjust 😊
+
+User: Confirm
+
+Lingxi: ✅ Skill "Deep Reading Notes" has been created!
+        File: skills-scenes/学习/_skills/阅读管理/深度阅读笔记.md
+```
+
+> 💡 The Skill Manager automatically infers name, category, keywords, and designs professional System Prompts — just describe your needs and confirm.
+
 ---
 
 ## 🖼️ Image Input
@@ -488,7 +550,7 @@ Use the **Remotely Save** plugin + **Tencent Cloud Object Storage (COS)** to syn
 | | Default Vision Model | Dropdown | Empty |
 | **Scenes** | Scene Root Directory | Text | `skills-scenes` |
 | **Archive** | Default Archive Folder | Text | `AI笔记` |
-| | Auto-archive AI Replies | Toggle | On (all AI replies auto-archived) |
+| | Auto-archive AI Replies | Toggle | On (archives when Skill matched or long reply) |
 | **Knowledge Retrieval** | Enable RAG | Toggle | Off |
 | | Embedding Provider | Dropdown | Empty |
 | | Embedding Model | Text | `text-embedding-v3` |
@@ -555,23 +617,27 @@ src/
 │   ├── OpenAICompatible.ts    # OpenAI-compatible Provider (covers all models)
 │   └── ProviderRegistry.ts    # Provider registration & management
 ├── skills/
-│   ├── SceneManager.ts        # Scene-based Skill/Rules management
-│   └── SkillManager.ts        # Legacy Skill management (compatibility)
+│   ├── SceneManager.ts        # Scene-based Skill/Rules management (scoring match + incremental hot update)
+│   ├── SkillFileOperator.ts   # Skill/Scene file CRUD operator
+│   └── ToolCallHandler.ts     # Function Calling tool registration & execution
 ├── search/
 │   ├── EmbeddingService.ts    # Embedding vectorization service
 │   ├── VectorStore.ts         # Local vector storage (JSON)
 │   └── RAGManager.ts          # RAG retrieval orchestrator
 ├── conversation/
-│   └── ConversationManager.ts # Conversation context management
+│   └── ConversationManager.ts # Conversation context management (with disk persistence)
 ├── archive/
 │   └── AutoArchiver.ts        # Auto-archive to Vault
+├── utils/
+│   └── markdown.ts            # Markdown utility functions
 └── ui/
     ├── ChatView.tsx           # Obsidian sidebar view
-    ├── Chat.tsx               # Chat interface main component
+    ├── Chat.tsx               # Chat main component (with Tool Call loop & stop generation)
     ├── MessageBubble.tsx      # Message bubble
-    ├── InputArea.tsx          # Input area
+    ├── InputArea.tsx          # Input area (text + image + note reference)
     ├── ModelSelector.tsx      # Model switcher
-    └── SettingsPanel.tsx      # Settings panel
+    ├── SettingsPanel.tsx      # Settings panel (React)
+    └── SettingsTab.tsx        # Obsidian PluginSettingTab wrapper
 ```
 
 ---

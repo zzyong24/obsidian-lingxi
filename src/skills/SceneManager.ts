@@ -321,40 +321,114 @@ export class SceneManager {
   }
 
   /**
-   * 监听文件变更，热更新
+   * 监听文件变更，增量热更新
+   * 根据变更类型和路径，只重新加载受影响的场景，避免全量重扫
    */
   private watchForChanges(): void {
     const shouldReload = (path: string) => path.startsWith(this.scenesFolder);
 
-    // 任何变更都触发全量重扫（简单可靠）
-    const debouncedReload = this.debounce(() => {
-      console.debug(`[AI Chat] 检测到场景文件变更，重新扫描...`);
-      void this.fullScan();
+    /**
+     * 从文件路径中解析出场景 ID
+     * 路径格式：scenesFolder/sceneId/...
+     */
+    const getSceneIdFromPath = (path: string): string | null => {
+      const relative = path.slice(this.scenesFolder.length + 1);
+      const parts = relative.split('/');
+      // 排除全局文件（_global_rules、_scenes_index.md 等）
+      if (parts.length === 0 || parts[0].startsWith('_')) return null;
+      return parts[0];
+    };
+
+    /**
+     * 判断是否是全局文件（全局 Rules 或场景索引）
+     */
+    const isGlobalFile = (path: string): boolean => {
+      const relative = path.slice(this.scenesFolder.length + 1);
+      return relative.startsWith('_global_rules/') || relative === '_scenes_index.md';
+    };
+
+    /**
+     * 增量重新加载指定场景（使用 pending set + debounce 批量处理）
+     */
+    const pendingSceneIds = new Set<string>();
+    const flushSceneReloads = this.debounce(() => {
+      for (const sceneId of pendingSceneIds) {
+        console.debug(`[AI Chat] 增量更新场景: ${sceneId}`);
+        const folderPath = `${this.scenesFolder}/${sceneId}`;
+        const folder = this.app.vault.getAbstractFileByPath(folderPath);
+        if (folder && folder instanceof TFolder) {
+          this.scenes.delete(sceneId);
+          void this.loadScene(folder).then(() => {
+            this.notifyCallbacks();
+          });
+        }
+      }
+      pendingSceneIds.clear();
     }, 500);
 
-    this.app.vault.on('modify', (file) => {
-      if (file instanceof TFile && shouldReload(file.path)) {
-        debouncedReload();
+    const reloadScene = (sceneId: string) => {
+      pendingSceneIds.add(sceneId);
+      flushSceneReloads();
+    };
+
+    /**
+     * 全局文件变更时重新加载全局内容
+     */
+    const reloadGlobal = this.debounce(() => {
+      console.debug(`[AI Chat] 全局文件变更，重新加载全局 Rules...`);
+      const rootFolder = this.app.vault.getAbstractFileByPath(this.scenesFolder);
+      if (rootFolder && rootFolder instanceof TFolder) {
+        void (async () => {
+          await this.loadGlobalRules(rootFolder);
+          await this.loadSceneIndex(rootFolder);
+          this.notifyCallbacks();
+        })();
       }
+    }, 500);
+
+    /**
+     * 处理文件变更事件（增量路由）
+     */
+    const handleChange = (path: string) => {
+      if (!shouldReload(path)) return;
+
+      if (isGlobalFile(path)) {
+        reloadGlobal();
+        return;
+      }
+
+      const sceneId = getSceneIdFromPath(path);
+      if (sceneId) {
+        reloadScene(sceneId);
+      }
+    };
+
+    this.app.vault.on('modify', (file) => {
+      if (file instanceof TFile) handleChange(file.path);
     });
 
     this.app.vault.on('create', (file) => {
-      if (file instanceof TFile && shouldReload(file.path)) {
-        debouncedReload();
-      }
+      if (file instanceof TFile) handleChange(file.path);
     });
 
     this.app.vault.on('delete', (file) => {
-      if (file instanceof TFile && shouldReload(file.path)) {
-        debouncedReload();
-      }
+      if (file instanceof TFile) handleChange(file.path);
     });
 
     this.app.vault.on('rename', (file, oldPath) => {
-      if (shouldReload(oldPath) || (file instanceof TFile && shouldReload(file.path))) {
-        debouncedReload();
-      }
+      // 旧路径和新路径都需要处理
+      handleChange(oldPath);
+      if (file instanceof TFile) handleChange(file.path);
     });
+  }
+
+  /**
+   * 通知所有订阅者
+   */
+  private notifyCallbacks(): void {
+    for (const cb of this.onScanCompleteCallbacks) {
+      try { cb(); } catch (e) { console.error('[AI Chat] onScanComplete 回调异常:', e); }
+    }
   }
 
   /**
@@ -473,32 +547,55 @@ export class SceneManager {
   }
 
   /**
-   * 关键词匹配场景
+   * 关键词匹配场景（评分机制，匹配多个关键词得分更高）
+   * @param minKeywordLength 最小关键词长度，过短易误触发
    */
-  matchSceneByKeywords(text: string): Scene | null {
+  matchSceneByKeywords(text: string, minKeywordLength: number = 3): Scene | null {
+    let bestScene: Scene | null = null;
+    let bestScore = 0;
+
     for (const scene of this.scenes.values()) {
+      let score = 0;
       for (const keyword of scene.triggerKeywords) {
+        if (keyword.length < minKeywordLength) continue;
         if (text.includes(keyword)) {
-          return scene;
+          // 关键词越长匹配权重越高
+          score += keyword.length;
         }
       }
+      if (score > bestScore) {
+        bestScore = score;
+        bestScene = scene;
+      }
     }
-    return null;
+
+    return bestScene;
   }
 
   /**
-   * 关键词匹配 Skill（在指定场景内，或全局搜索）
+   * 关键词匹配 Skill（评分机制，在指定场景内或全局搜索）
+   * @param minKeywordLength 最小关键词长度
    */
-  matchSkillByKeywords(text: string, sceneId?: string): Skill | null {
+  matchSkillByKeywords(text: string, sceneId?: string, minKeywordLength: number = 3): Skill | null {
     const skills = sceneId ? this.getSceneSkills(sceneId) : this.getAllSkills();
+    let bestSkill: Skill | null = null;
+    let bestScore = 0;
+
     for (const skill of skills) {
+      let score = 0;
       for (const keyword of skill.triggerKeywords) {
+        if (keyword.length < minKeywordLength) continue;
         if (text.includes(keyword)) {
-          return skill;
+          score += keyword.length;
         }
       }
+      if (score > bestScore) {
+        bestScore = score;
+        bestSkill = skill;
+      }
     }
-    return null;
+
+    return bestSkill;
   }
 
   /**

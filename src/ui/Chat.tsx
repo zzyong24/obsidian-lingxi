@@ -1,12 +1,13 @@
 /**
  * 聊天界面主组件
  * 整合消息列表、输入区域、场景选择、模型切换等功能
+ * 支持 Function Calling Tool Call 循环处理
  * 
  * 场景化架构：全局 Rules → 场景 Rules → Skill System Prompt
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ChatMessage, ContentPart, Skill, Scene, NoteReference } from '@/types';
+import { ChatMessage, ContentPart, Skill, Scene, NoteReference, ToolCall } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { InputArea, ImageAttachment } from './InputArea';
 import { TFile } from 'obsidian';
@@ -16,8 +17,18 @@ import { ProviderRegistry } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
 import { RAGManager } from '@/search/RAGManager';
+import { ToolCallHandler } from '@/skills/ToolCallHandler';
 import { getSettings } from '@/settings';
 import { App, Notice } from 'obsidian';
+
+/** Tool Call 流式累积器：用于从流式 SSE 中组装完整的 tool_call */
+interface ToolCallAccumulator {
+  [index: number]: {
+    id: string;
+    name: string;
+    arguments: string;
+  };
+}
 
 interface ChatProps {
   app: App;
@@ -26,6 +37,7 @@ interface ChatProps {
   archiver: AutoArchiver;
   ragManager: RAGManager;
   conversationManager: ConversationManager;
+  toolCallHandler: ToolCallHandler;
   onNewChat: () => void;
 }
 
@@ -36,6 +48,7 @@ export const Chat: React.FC<ChatProps> = ({
   archiver,
   ragManager,
   conversationManager,
+  toolCallHandler,
   onNewChat,
 }) => {
   const settings = getSettings();
@@ -51,6 +64,8 @@ export const Chat: React.FC<ChatProps> = ({
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
+  /** 跟踪当前对话是否处于 Tool Call 流程中（跨轮次保持） */
+  const toolCallActiveRef = useRef(false);
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -67,7 +82,14 @@ export const Chat: React.FC<ChatProps> = ({
   }, [conversationManager]);
 
   /**
-   * 发送消息的核心逻辑（支持文本 + 图片多模态）
+   * 停止生成
+   */
+  const handleAbort = useCallback(() => {
+    abortRef.current = true;
+  }, []);
+
+  /**
+   * 发送消息的核心逻辑（支持文本 + 图片多模态 + Tool Call 循环）
    */
   const handleSend = useCallback((text: string, images?: ImageAttachment[], noteRefs?: NoteReference[]) => {
     if ((!text.trim() && (!images || images.length === 0) && (!noteRefs || noteRefs.length === 0)) || isLoading) return;
@@ -172,10 +194,14 @@ export const Chat: React.FC<ChatProps> = ({
         // 再全局匹配
         if (!activeSkill) {
           activeSkill = sceneManager.matchSkillByKeywords(text);
-          // 如果匹配到了 Skill 且没有选定场景，自动设置场景
-          if (activeSkill && !activeScene) {
-            activeScene = sceneManager.getSceneById(activeSkill.sceneId) || null;
-            if (activeScene) {
+          // 如果匹配到了 Skill，自动切换到 Skill 所属的场景
+          if (activeSkill) {
+            const skillScene = sceneManager.getSceneById(activeSkill.sceneId) || null;
+            if (skillScene && skillScene.id !== activeScene?.id) {
+              activeScene = skillScene;
+              setSelectedScene(activeScene);
+            } else if (!activeScene && skillScene) {
+              activeScene = skillScene;
               setSelectedScene(activeScene);
             }
           }
@@ -230,34 +256,158 @@ export const Chat: React.FC<ChatProps> = ({
         messagesToSend.push(...nonSystemMessages);
       }
 
-      // 流式输出
-      if (settings.streamOutput) {
-        let fullContent = '';
+      // 判断是否需要启用 Tool Call
+      // 优先检查当前输入是否包含工具关键词
+      // 如果不包含，再检查对话是否已在工具调用流程中（如用户回复"确认"时）
+      const enableTools = toolCallHandler.shouldEnableTools(text)
+        || toolCallActiveRef.current;
 
-        const stream = provider.chatStream(messagesToSend, {
+      // Tool Call 循环处理
+      let currentMessages = [...messagesToSend];
+      const maxToolCallRounds = 5; // 最多循环 5 轮工具调用
+
+      for (let round = 0; round <= maxToolCallRounds; round++) {
+        if (abortRef.current) break;
+
+        // 流式输出
+        let fullContent = '';
+        const accumulatedToolCalls: ToolCallAccumulator = {};
+        let hasToolCalls = false;
+
+        // 每一轮都注入工具定义（支持AI连续调用多个工具，如：创建场景 → 创建Skill1 → 创建Skill2）
+        // 仅在最后一轮（round == maxToolCallRounds）不注入，强制AI输出文本回复
+        const shouldInjectTools = enableTools && round < maxToolCallRounds;
+        const chatOptions = {
           model,
           temperature: settings.temperature,
-        });
+          ...(shouldInjectTools ? { tools: toolCallHandler.getToolDefinitions() } : {}),
+        };
 
-        for await (const chunk of stream) {
-          if (abortRef.current) break;
+        if (settings.streamOutput) {
+          const stream = provider.chatStream(currentMessages, chatOptions);
 
-          if (chunk.type === 'text' && chunk.content) {
-            fullContent += chunk.content;
-            setStreamingContent(fullContent);
-          } else if (chunk.type === 'error') {
-            new Notice(`AI 响应错误: ${chunk.error}`);
-            break;
-          } else if (chunk.type === 'done') {
-            break;
+          for await (const chunk of stream) {
+            if (abortRef.current) break;
+
+            if (chunk.type === 'text' && chunk.content) {
+              fullContent += chunk.content;
+              setStreamingContent(fullContent);
+            } else if (chunk.type === 'tool_call' && chunk.toolCall) {
+              // 累积流式 tool_call 片段
+              hasToolCalls = true;
+              const tc = chunk.toolCall;
+              // 使用 toolCallIndex 确定是哪个 tool_call（流式中可能并行有多个）
+              const idx = chunk.toolCallIndex ?? Object.keys(accumulatedToolCalls).length;
+              if (tc.id && !accumulatedToolCalls[idx]) {
+                // 首次出现（带 id），初始化新的 tool_call
+                accumulatedToolCalls[idx] = {
+                  id: tc.id,
+                  name: tc.function.name || '',
+                  arguments: tc.function.arguments || '',
+                };
+              } else if (accumulatedToolCalls[idx]) {
+                // 后续 chunk，追加 arguments
+                if (tc.function.name) {
+                  accumulatedToolCalls[idx].name += tc.function.name;
+                }
+                accumulatedToolCalls[idx].arguments += tc.function.arguments || '';
+              }
+            } else if (chunk.type === 'error') {
+              new Notice(`AI 响应错误: ${chunk.error}`);
+              break;
+            } else if (chunk.type === 'done') {
+              break;
+            }
+          }
+        } else {
+          // 非流式：chatComplete 现在返回结构化结果
+          const result = await provider.chatComplete(currentMessages, chatOptions);
+          fullContent = result.content;
+          if (result.toolCalls && result.toolCalls.length > 0) {
+            hasToolCalls = true;
+            for (let i = 0; i < result.toolCalls.length; i++) {
+              const tc: ToolCall = result.toolCalls[i];
+              accumulatedToolCalls[i] = {
+                id: tc.id,
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              };
+            }
           }
         }
 
+        // 如果有工具调用，执行工具并继续循环
+        if (hasToolCalls && Object.keys(accumulatedToolCalls).length > 0) {
+          const toolCalls: ToolCall[] = Object.values(accumulatedToolCalls).map(tc => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: { name: tc.name, arguments: tc.arguments },
+          }));
+
+          // 将 assistant 的 tool_call 消息加入上下文
+          const assistantToolMsg: ChatMessage = {
+            role: 'assistant',
+            content: fullContent || '',
+            tool_calls: toolCalls,
+          };
+          currentMessages.push(assistantToolMsg);
+          // 同时存入对话管理器，保持上下文连贯性
+          conversationManager.append(assistantToolMsg);
+
+          // 执行每个工具调用
+          for (const tc of toolCalls) {
+            if (abortRef.current) break;
+
+            setStreamingContent(`🔧 正在执行: ${tc.function.name}...`);
+            const toolResult = await toolCallHandler.executeToolCall(tc);
+
+            // 将工具结果加入上下文
+            const toolResultMsg: ChatMessage = {
+              role: 'tool',
+              content: toolResult.result,
+              tool_call_id: toolResult.toolCallId,
+            };
+            currentMessages.push(toolResultMsg);
+            // 同时存入对话管理器
+            conversationManager.append(toolResultMsg);
+          }
+
+          // 标记工具调用流程活跃
+          toolCallActiveRef.current = true;
+
+          // 继续循环，让 AI 处理工具结果（可能还需要继续调用工具）
+          setStreamingContent('');
+          continue;
+        }
+
+        // 没有工具调用，这是最终文本回复
         if (fullContent) {
           conversationManager.append({ role: 'assistant', content: fullContent });
 
-          // 自动归档（不再限制必须匹配 Skill）
-          if (settings.autoArchive) {
+          // 工具调用流程结束后：重置标志 & 自动切换场景/Skill
+          if (toolCallActiveRef.current) {
+            // 工具调用可能创建了新场景或Skill，刷新SceneManager后尝试切换
+            await sceneManager.fullScan();
+            // 从AI最终回复中推断应该切换到哪个场景
+            const newSkill = sceneManager.matchSkillByKeywords(text);
+            if (newSkill) {
+              const newScene = sceneManager.getSceneById(newSkill.sceneId);
+              if (newScene) {
+                setSelectedScene(newScene);
+                setSelectedSkill(newSkill);
+              }
+            } else {
+              // 没匹配到Skill则尝试匹配场景
+              const newScene = sceneManager.matchSceneByKeywords(text);
+              if (newScene) {
+                setSelectedScene(newScene);
+              }
+            }
+          }
+          toolCallActiveRef.current = false;
+
+          // 归档策略优化：只在匹配到 Skill 或回复超过一定长度时才归档
+          if (settings.autoArchive && (activeSkill || fullContent.length > 200)) {
             try {
               const result = await archiver.archive({
                 content: fullContent,
@@ -269,28 +419,9 @@ export const Chat: React.FC<ChatProps> = ({
             }
           }
         }
-      } else {
-        // 非流式
-        const content = await provider.chatComplete(messagesToSend, {
-          model,
-          temperature: settings.temperature,
-        });
 
-        if (content) {
-          conversationManager.append({ role: 'assistant', content });
-
-          if (settings.autoArchive) {
-            try {
-              const result = await archiver.archive({
-                content,
-                skill: activeSkill || undefined,
-              });
-              new Notice(`✅ 已归档到 ${result.filePath}`);
-            } catch (error) {
-              console.error('[Lingxi] 归档失败:', error);
-            }
-          }
-        }
+        // 正常退出循环
+        break;
       }
     } catch (error) {
       console.error('[Lingxi] 发送消息失败:', error);
@@ -303,7 +434,8 @@ export const Chat: React.FC<ChatProps> = ({
     })();
   }, [
     app, isLoading, currentModel, providerRegistry, conversationManager,
-    selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager, syncMessages,
+    selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager,
+    toolCallHandler, syncMessages,
   ]);
 
   /**
@@ -344,6 +476,7 @@ export const Chat: React.FC<ChatProps> = ({
     setSelectedSkill(null);
     setSelectedScene(null);
     setStreamingContent('');
+    toolCallActiveRef.current = false;
     onNewChat();
   }, [conversationManager, onNewChat]);
 
@@ -423,7 +556,15 @@ export const Chat: React.FC<ChatProps> = ({
           </div>
         )}
 
-        {messages.filter(m => m.role !== 'system').map((msg, index) => (
+        {messages.filter(m => {
+          // 隐藏 system 消息
+          if (m.role === 'system') return false;
+          // 隐藏 tool 结果消息
+          if (m.role === 'tool') return false;
+          // 隐藏带 tool_calls 的 assistant 中间消息（这是工具调用指令，非面向用户的内容）
+          if (m.role === 'assistant' && m.tool_calls && m.tool_calls.length > 0) return false;
+          return true;
+        }).map((msg, index) => (
           <MessageBubble
             key={index}
             message={msg}
@@ -440,7 +581,7 @@ export const Chat: React.FC<ChatProps> = ({
           />
         )}
 
-        {/* 加载动画 */}
+        {/* 加载动画 + 停止按钮 */}
         {isLoading && !streamingContent && (
           <div className="ai-chat-message ai-chat-message-ai">
             <div className="ai-chat-message-avatar">🤖</div>
@@ -451,6 +592,19 @@ export const Chat: React.FC<ChatProps> = ({
                 <span className="ai-chat-dot">●</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 停止生成按钮 */}
+        {isLoading && (
+          <div className="ai-chat-stop-container">
+            <button
+              className="ai-chat-stop-btn"
+              onClick={handleAbort}
+              title="停止生成"
+            >
+              ⏹ 停止生成
+            </button>
           </div>
         )}
 

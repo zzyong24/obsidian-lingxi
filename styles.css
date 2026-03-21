@@ -1102,3 +1102,30 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ===== 停止生成按钮 ===== */
+.ai-chat-stop-container {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.ai-chat-stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 16px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ai-chat-stop-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--text-error);
+}

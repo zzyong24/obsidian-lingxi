@@ -7,7 +7,8 @@ import { CHAT_VIEWTYPE } from '@/constants';
 import { AIChatSettings } from '@/types';
 import { getSettings, setSettings, sanitizeSettings } from '@/settings';
 import { ProviderRegistry } from '@/providers';
-import { SceneManager } from '@/skills';
+import { SceneManager, SkillFileOperator } from '@/skills';
+import { ToolCallHandler } from '@/skills/ToolCallHandler';
 import { AutoArchiver } from '@/archive/AutoArchiver';
 import { ConversationManager } from '@/conversation/ConversationManager';
 import { RAGManager } from '@/search/RAGManager';
@@ -19,6 +20,8 @@ export default class AIChatPlugin extends Plugin {
   // 核心组件
   providerRegistry: ProviderRegistry;
   sceneManager: SceneManager;
+  skillFileOperator: SkillFileOperator;
+  toolCallHandler: ToolCallHandler;
   archiver: AutoArchiver;
   conversationManager: ConversationManager;
   ragManager: RAGManager;
@@ -36,6 +39,8 @@ export default class AIChatPlugin extends Plugin {
     this.providerRegistry.initialize(settings);
 
     this.sceneManager = new SceneManager(this.app, settings.scenesFolder);
+    this.skillFileOperator = new SkillFileOperator(this.app, settings.scenesFolder, this.sceneManager);
+    this.toolCallHandler = new ToolCallHandler(this.skillFileOperator, this.sceneManager);
     this.archiver = new AutoArchiver(this.app, settings.defaultArchiveFolder, settings.scenesFolder);
     this.conversationManager = new ConversationManager(settings.maxContextMessages);
     this.ragManager = new RAGManager(this.app, settings);
@@ -71,6 +76,7 @@ export default class AIChatPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
         await this.sceneManager.initialize();
+        await this.conversationManager.initPersistence(this.app, this.manifest);
         await this.ragManager.initialize();
       })();
     });

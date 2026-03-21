@@ -22,6 +22,7 @@ export interface ChatMessage {
 /** Function Calling 工具调用 */
 export interface ToolCall {
   id: string;
+  type: 'function';
   function: { name: string; arguments: string };
 }
 
@@ -48,6 +49,8 @@ export interface StreamChunk {
   type: 'text' | 'tool_call' | 'done' | 'error';
   content?: string;
   toolCall?: ToolCall;
+  /** 流式 tool_call 的索引，用于正确累积多个 tool_call */
+  toolCallIndex?: number;
   error?: string;
 }
 

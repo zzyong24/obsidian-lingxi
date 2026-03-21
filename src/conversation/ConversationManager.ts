@@ -1,22 +1,60 @@
 /**
  * 对话上下文管理器
- * 管理对话历史、消息截断、Skill 切换
+ * 管理对话历史、消息截断、Skill 切换、对话持久化
  */
 
 import { ChatMessage, Conversation } from '@/types';
+import { localISOString } from '@/utils/datetime';
+import { App, PluginManifest } from 'obsidian';
+
+/** 持久化数据格式 */
+interface PersistedData {
+  conversations: Conversation[];
+  activeConversationId: string;
+}
 
 /** 生成简单 UUID */
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
+/** 持久化存储的文件名 */
+const STORAGE_FILE = 'lingxi-conversations.json';
+
+/** 最大保存对话数 */
+const MAX_PERSISTED_CONVERSATIONS = 20;
+
 export class ConversationManager {
   private conversation: Conversation;
+  private conversations: Conversation[] = [];
   private maxContextMessages: number;
+  private app: App | null = null;
+  private manifest: PluginManifest | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(maxContextMessages: number = 20) {
     this.maxContextMessages = maxContextMessages;
     this.conversation = this.createNewConversation();
+    this.conversations = [this.conversation];
+  }
+
+  /**
+   * 获取插件数据目录路径
+   */
+  private getPluginDir(): string {
+    const configDir = this.app!.vault.configDir;
+    const pluginId = this.manifest?.id || 'lingxi';
+    return `${configDir}/plugins/${pluginId}`;
+  }
+
+  /**
+   * 初始化持久化（需要 App 实例和插件 manifest）
+   */
+  async initPersistence(app: App, manifest?: PluginManifest): Promise<void> {
+    this.app = app;
+    this.manifest = manifest || null;
+    await this.migrateOldData();
+    await this.loadFromDisk();
   }
 
   /**
@@ -27,8 +65,8 @@ export class ConversationManager {
       id: generateId(),
       title: '',
       messages: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: localISOString(),
+      updatedAt: localISOString(),
       activeSkill: undefined,
     };
   }
@@ -38,6 +76,13 @@ export class ConversationManager {
    */
   getConversation(): Conversation {
     return this.conversation;
+  }
+
+  /**
+   * 获取所有对话列表
+   */
+  getAllConversations(): Conversation[] {
+    return this.conversations;
   }
 
   /**
@@ -69,7 +114,7 @@ export class ConversationManager {
    */
   append(message: ChatMessage): void {
     this.conversation.messages.push(message);
-    this.conversation.updatedAt = new Date().toISOString();
+    this.conversation.updatedAt = localISOString();
 
     // 自动设置对话标题（取首条用户消息的前20个字）
     if (!this.conversation.title && message.role === 'user') {
@@ -78,13 +123,39 @@ export class ConversationManager {
         : message.content.map(p => p.text || '').join('');
       this.conversation.title = content.slice(0, 20) + (content.length > 20 ? '...' : '');
     }
+
+    this.debounceSave();
   }
 
   /**
-   * 新建对话（清空历史）
+   * 新建对话（保留历史对话列表）
    */
   newConversation(): void {
+    // 如果当前对话有消息，保留到历史中
+    if (this.conversation.messages.length > 0) {
+      // 限制保存的对话数
+      if (this.conversations.length >= MAX_PERSISTED_CONVERSATIONS) {
+        this.conversations.shift(); // 移除最早的
+      }
+    } else {
+      // 当前对话为空，从列表中移除
+      const idx = this.conversations.indexOf(this.conversation);
+      if (idx >= 0) this.conversations.splice(idx, 1);
+    }
+
     this.conversation = this.createNewConversation();
+    this.conversations.push(this.conversation);
+    this.debounceSave();
+  }
+
+  /**
+   * 切换到指定对话
+   */
+  switchConversation(conversationId: string): boolean {
+    const target = this.conversations.find(c => c.id === conversationId);
+    if (!target) return false;
+    this.conversation = target;
+    return true;
   }
 
   /**
@@ -106,7 +177,8 @@ export class ConversationManager {
    */
   clearMessages(): void {
     this.conversation.messages = [];
-    this.conversation.updatedAt = new Date().toISOString();
+    this.conversation.updatedAt = localISOString();
+    this.debounceSave();
   }
 
   /**
@@ -114,5 +186,130 @@ export class ConversationManager {
    */
   getMessageCount(): number {
     return this.conversation.messages.length;
+  }
+
+  // ========== 持久化 ==========
+
+  /**
+   * 防抖保存（避免频繁写入磁盘）
+   */
+  private debounceSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      void this.saveToDisk();
+    }, 2000);
+  }
+
+  /**
+   * 迁移旧路径数据（从 obsidian-lingxi 迁移到正确的插件目录）
+   */
+  private async migrateOldData(): Promise<void> {
+    if (!this.app) return;
+
+    try {
+      const configDir = this.app.vault.configDir;
+      const oldPath = `${configDir}/plugins/obsidian-lingxi/${STORAGE_FILE}`;
+      const newDir = this.getPluginDir();
+      const newPath = `${newDir}/${STORAGE_FILE}`;
+
+      // 如果旧路径和新路径相同，无需迁移
+      if (oldPath === newPath) return;
+
+      const oldExists = await this.app.vault.adapter.exists(oldPath);
+      if (!oldExists) return;
+
+      const newExists = await this.app.vault.adapter.exists(newPath);
+      if (newExists) {
+        // 新路径已有数据，删除旧文件
+        console.debug('[Lingxi] 新路径已有数据，删除旧路径文件');
+        await this.app.vault.adapter.remove(oldPath);
+      } else {
+        // 迁移：读取旧数据写入新路径
+        const raw = await this.app.vault.adapter.read(oldPath);
+        const dirExists = await this.app.vault.adapter.exists(newDir);
+        if (!dirExists) {
+          await this.app.vault.adapter.mkdir(newDir);
+        }
+        await this.app.vault.adapter.write(newPath, raw);
+        await this.app.vault.adapter.remove(oldPath);
+        console.debug('[Lingxi] 已将对话数据从旧路径迁移到新路径');
+      }
+
+      // 尝试删除旧的空目录
+      const oldDir = `${configDir}/plugins/obsidian-lingxi`;
+      try {
+        const oldDirFiles = await this.app.vault.adapter.list(oldDir);
+        if (oldDirFiles.files.length === 0 && oldDirFiles.folders.length === 0) {
+          await this.app.vault.adapter.rmdir(oldDir, false);
+          console.debug('[Lingxi] 已删除空的旧插件目录 obsidian-lingxi');
+        }
+      } catch {
+        // 目录不为空或删除失败，忽略
+      }
+    } catch (error) {
+      console.error('[Lingxi] 迁移旧数据失败:', error);
+    }
+  }
+
+  /**
+   * 从磁盘加载对话历史
+   */
+  private async loadFromDisk(): Promise<void> {
+    if (!this.app) return;
+
+    try {
+      const pluginDir = this.getPluginDir();
+      const filePath = `${pluginDir}/${STORAGE_FILE}`;
+      const fileExists = await this.app.vault.adapter.exists(filePath);
+
+      if (!fileExists) {
+        console.debug('[Lingxi] 无历史对话记录');
+        return;
+      }
+
+      const raw = await this.app.vault.adapter.read(filePath);
+      const data = JSON.parse(raw) as PersistedData;
+
+      if (data.conversations && data.conversations.length > 0) {
+        this.conversations = data.conversations;
+        // 恢复激活的对话
+        const active = this.conversations.find(c => c.id === data.activeConversationId);
+        if (active) {
+          this.conversation = active;
+        } else {
+          this.conversation = this.conversations[this.conversations.length - 1];
+        }
+        console.debug(`[Lingxi] 已恢复 ${this.conversations.length} 个对话`);
+      }
+    } catch (error) {
+      console.error('[Lingxi] 加载对话历史失败:', error);
+    }
+  }
+
+  /**
+   * 保存对话历史到磁盘
+   */
+  private async saveToDisk(): Promise<void> {
+    if (!this.app) return;
+
+    try {
+      const pluginDir = this.getPluginDir();
+
+      // 确保目录存在
+      const dirExists = await this.app.vault.adapter.exists(pluginDir);
+      if (!dirExists) {
+        await this.app.vault.adapter.mkdir(pluginDir);
+      }
+
+      const data: PersistedData = {
+        conversations: this.conversations,
+        activeConversationId: this.conversation.id,
+      };
+
+      const filePath = `${pluginDir}/${STORAGE_FILE}`;
+      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+    } catch (error) {
+      console.error('[Lingxi] 保存对话历史失败:', error);
+    }
   }
 }

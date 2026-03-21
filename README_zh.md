@@ -40,6 +40,7 @@
   - [目录结构](#目录结构)
   - [Skill 文件规范](#skill-文件规范)
   - [使用 Skill](#使用-skill)
+  - [对话式管理 Skills 和场景](#对话式管理-skills-和场景)
 - [🖼️ 图片输入](#️-图片输入)
 - [☁️ 多端同步：Remotely Save + 腾讯云 COS](#️-多端同步remotely-save--腾讯云-cos)
   - [为什么选择 COS](#为什么选择-cos)
@@ -61,10 +62,12 @@
 |------|------|
 | 🗣️ **对话即沉淀** | 与 AI 对话的同时，自动将内容归档为结构化笔记 |
 | ⚡ **Skill 驱动** | 通过 Markdown Skill 模板定义 AI 行为，灵活可扩展 |
-| 🎭 **场景化管理** | 按场景（如自媒体、学习）组织 Skills 和 Rules，自动匹配 |
+| 🎭 **场景化管理** | 按场景（如自媒体、学习）组织 Skills 和 Rules，智能评分匹配 |
+| 🛠️ **一切皆对话** | 通过对话创建、修改、删除 Skills 和场景 — Function Calling 驱动 |
+| 💾 **对话持久化** | 对话历史自动保存到磁盘，重启 Obsidian 后无缝恢复 |
 | 🇨🇳 **国内模型优先** | 预置 DeepSeek / 通义千问 / 豆包 / Kimi / 智谱，开箱即用 |
 | 🖼️ **图片识别** | 支持粘贴/拖拽图片，发送给视觉模型分析 |
-| 📡 **流式输出** | 打字机效果实时显示 AI 回复，体验流畅 |
+| 📡 **流式输出** | 打字机效果实时显示 AI 回复，支持随时停止生成 |
 | 🔒 **数据全本地** | 所有数据存储在 Obsidian Vault 中，零云端依赖 |
 | 📱 **多端同步** | 搭配 Remotely Save + COS 实现桌面/手机多端同步 |
 | 🔍 **知识检索（RAG）** | 自动从 Vault 笔记中检索相关知识，让 AI 基于你的笔记回答 |
@@ -341,6 +344,13 @@
     │   └── 通用助手规则.md
     ├── _scenes_index.md              # 📋 场景索引（帮助 AI 自动匹配场景）
     │
+    ├── 系统管理/                      # ⚙️ 场景：系统管理（内置）
+    │   ├── _scene.md                 # 场景描述
+    │   ├── _rules/
+    │   └── _skills/
+    │       └── 系统/
+    │           └── skill-manager.md  # 内置 Skill 管理助手（通过对话 CRUD Skills 和场景）
+    │
     ├── 自媒体/                       # 📱 场景：自媒体创作
     │   ├── _scene.md                 # 场景描述 + 工作流 + Skills 概览
     │   ├── _rules/                   # 场景级规则
@@ -447,6 +457,57 @@ model_preference: text
 **方式二：场景快捷入口**
 
 在欢迎页面直接点击场景按钮（如「📱 自媒体」），快速进入对应场景上下文。场景内的 Rules 和 Skill 会自动生效。
+
+**关键词匹配机制：**
+
+插件采用 **评分机制** 进行关键词匹配，而非简单的首次命中：
+
+1. 用户消息中匹配到的关键词越多，得分越高
+2. 关键词越长，权重越大（避免短词误触发）
+3. 系统自动选择得分最高的 Scene/Skill
+4. 最小关键词长度为 2 字，单字不会触发匹配
+
+### 对话式管理 Skills 和场景
+
+灵犀内置了一个 **Skill 管理助手**（基于 Function Calling），你可以通过自然语言对话完成所有管理操作，无需手动创建文件：
+
+**支持的操作：**
+
+| 说法示例 | 执行操作 |
+|---------|----------|
+| 「帮我创建一个阅读笔记 Skill」 | 引导式创建 Skill |
+| 「修改一下热点选题的关键词」 | 更新指定 Skill |
+| 「删除 XX Skill」 | 确认后删除 Skill |
+| 「我有哪些 Skill」 | 列出所有 Skill |
+| 「创建一个健康管理场景」 | 创建新场景 |
+| 「查看所有场景」 | 列出场景概要 |
+
+**引导式对话流程：**
+
+```
+用户: 帮我创建一个阅读笔记的 Skill
+
+灵犀: 我帮你设计好了这个 Skill，请看看是否满意：
+
+      📌 基本信息
+      - 名称：深度阅读笔记
+      - 场景：📚 学习
+      - 分类：阅读管理
+      - 描述：引导你对书籍进行深度阅读，输出结构化的读书笔记
+      - 触发关键词：["阅读笔记", "读书笔记", "深度阅读"]
+
+      🧠 System Prompt 预览
+      > 你是一位资深的阅读教练，擅长引导用户进行深度阅读并输出结构化笔记...
+
+      满意的话回复「确认」我就创建，想调整哪里也告诉我 😊
+
+用户: 确认
+
+灵犀: ✅ Skill「深度阅读笔记」已创建！
+      文件路径：skills-scenes/学习/_skills/阅读管理/深度阅读笔记.md
+```
+
+> 💡 Skill 管理助手会自动推断名称、分类、关键词，并设计专业的 System Prompt —— 你只需描述需求，确认即可。
 
 ---
 
@@ -583,7 +644,7 @@ model_preference: text
 | | 默认视觉模型 | 下拉 | 空 |
 | **场景** | 场景根目录路径 | 文本框 | `skills-scenes` |
 | **归档** | 默认归档文件夹 | 文本框 | `AI笔记` |
-| | 自动归档 AI 回复 | 开关 | 开启（所有 AI 回复自动归档） |
+| | 自动归档 AI 回复 | 开关 | 开启（匹配 Skill 或长回复时归档） |
 | **知识检索** | 启用知识检索（RAG） | 开关 | 关闭 |
 | | Embedding 提供商 | 下拉 | 空 |
 | | Embedding 模型 | 文本框 | `text-embedding-v3` |
@@ -650,23 +711,27 @@ src/
 │   ├── OpenAICompatible.ts    # OpenAI 兼容 Provider（覆盖所有模型）
 │   └── ProviderRegistry.ts    # Provider 注册 & 管理
 ├── skills/
-│   ├── SceneManager.ts        # 场景化 Skill/Rules 管理
-│   └── SkillManager.ts        # 传统 Skill 管理（兼容）
+│   ├── SceneManager.ts        # 场景化 Skill/Rules 管理（评分匹配 + 增量热更新）
+│   ├── SkillFileOperator.ts   # Skill/Scene 文件 CRUD 操作器
+│   └── ToolCallHandler.ts     # Function Calling 工具注册 & 执行
 ├── search/
 │   ├── EmbeddingService.ts    # Embedding 向量化服务
 │   ├── VectorStore.ts         # 本地向量存储（JSON）
 │   └── RAGManager.ts          # RAG 检索编排器
 ├── conversation/
-│   └── ConversationManager.ts # 对话上下文管理
+│   └── ConversationManager.ts # 对话上下文管理（含磁盘持久化）
 ├── archive/
 │   └── AutoArchiver.ts        # 自动归档到 Vault
+├── utils/
+│   └── markdown.ts            # Markdown 工具函数
 └── ui/
     ├── ChatView.tsx           # Obsidian 侧边栏视图
-    ├── Chat.tsx               # 聊天界面主组件
+    ├── Chat.tsx               # 聊天主组件（含 Tool Call 循环 & 停止生成）
     ├── MessageBubble.tsx      # 消息气泡
-    ├── InputArea.tsx          # 输入区域
+    ├── InputArea.tsx          # 输入区域（文本 + 图片 + 笔记引用）
     ├── ModelSelector.tsx      # 模型切换
-    └── SettingsPanel.tsx      # 设置面板
+    ├── SettingsPanel.tsx      # 设置面板（React）
+    └── SettingsTab.tsx        # Obsidian PluginSettingTab 封装
 ```
 
 ---

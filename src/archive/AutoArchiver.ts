@@ -4,6 +4,7 @@
  */
 
 import { ArchiveOptions, ArchiveResult, Skill } from '@/types';
+import { localNow } from '@/utils/datetime';
 import { App } from 'obsidian';
 
 export class AutoArchiver {
@@ -246,7 +247,7 @@ export class AutoArchiver {
    * 构建 Frontmatter
    */
   private buildFrontmatter(skill?: Skill, tags?: string[]): string {
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const now = localNow();
     const allTags = [
       ...(skill?.triggerKeywords?.slice(0, 3) || []),
       ...(skill?.category ? [skill.category] : []),

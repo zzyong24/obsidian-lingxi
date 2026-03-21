@@ -182,8 +182,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {isStreaming && <span className="ai-chat-cursor">▊</span>}
         </div>
 
-        {/* AI 消息的操作按钮 */}
-        {!isUser && !isStreaming && content && (
+        {/* 消息操作按钮：用户消息支持复制，AI 消息支持复制+保存 */}
+        {!isStreaming && content && (
           <div className="ai-chat-message-actions">
             <button
               className="ai-chat-action-btn"
@@ -192,13 +192,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             >
               📋 复制
             </button>
-            <button
-              className="ai-chat-action-btn"
-              onClick={handleSave}
-              title="保存为笔记"
-            >
-              💾 保存为笔记
-            </button>
+            {!isUser && (
+              <button
+                className="ai-chat-action-btn"
+                onClick={handleSave}
+                title="保存为笔记"
+              >
+                💾 保存为笔记
+              </button>
+            )}
           </div>
         )}
       </div>

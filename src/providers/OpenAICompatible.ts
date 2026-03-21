@@ -3,8 +3,14 @@
  * 一个类覆盖所有国内模型（DeepSeek、通义千问、豆包、Kimi、智谱）
  */
 
-import { ChatMessage, ChatOptions, StreamChunk } from '@/types';
+import { ChatMessage, ChatOptions, StreamChunk, ToolCall } from '@/types';
 import { requestUrl } from 'obsidian';
+
+/** chatComplete 的返回结果 */
+export interface ChatCompleteResult {
+  content: string;
+  toolCalls?: ToolCall[];
+}
 
 export class OpenAICompatibleProvider {
   constructor(
@@ -22,7 +28,11 @@ export class OpenAICompatibleProvider {
         return {
           role: msg.role,
           content: msg.content,
-          ...(msg.tool_calls ? { tool_calls: msg.tool_calls } : {}),
+          ...(msg.tool_calls ? { tool_calls: msg.tool_calls.map(tc => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: tc.function,
+          })) } : {}),
           ...(msg.tool_call_id ? { tool_call_id: msg.tool_call_id } : {}),
         };
       }
@@ -39,11 +49,12 @@ export class OpenAICompatibleProvider {
 
   /**
    * 非流式聊天请求
+   * 返回结构化结果，包含文本内容和可能的 tool_calls
    */
   async chatComplete(
     messages: ChatMessage[],
     options?: ChatOptions
-  ): Promise<string> {
+  ): Promise<ChatCompleteResult> {
     const model = options?.model || this.defaultModel;
     const url = `${this.baseUrl}/chat/completions`;
 
@@ -68,14 +79,40 @@ export class OpenAICompatibleProvider {
       body: JSON.stringify(body),
     });
 
-    const data = response.json;
+    const data = response.json as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+          tool_calls?: Array<{
+            id: string;
+            function: { name: string; arguments: string };
+          }>;
+        };
+      }>;
+    };
     const choice = data.choices?.[0];
 
     if (!choice) {
       throw new Error('模型未返回有效响应');
     }
 
-    return choice.message?.content || '';
+    const message = choice.message;
+    const content: string = message?.content || '';
+
+    // 解析 tool_calls
+    let toolCalls: ToolCall[] | undefined;
+    if (message?.tool_calls && message.tool_calls.length > 0) {
+      toolCalls = message.tool_calls.map(tc => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        },
+      }));
+    }
+
+    return { content, toolCalls };
   }
 
   /**
@@ -100,7 +137,6 @@ export class OpenAICompatibleProvider {
     }
 
     try {
-      // Obsidian 的 requestUrl 不支持流式 SSE，需要使用浏览器原生 fetch API
       const response = await globalThis.fetch(url, {
         method: 'POST',
         headers: {
@@ -137,35 +173,46 @@ export class OpenAICompatibleProvider {
           const trimmed = line.trim();
           if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') {
+          const sseData = trimmed.slice(6);
+          if (sseData === '[DONE]') {
             yield { type: 'done' };
             return;
           }
 
           try {
-            const json = JSON.parse(data);
+            const json = JSON.parse(sseData) as {
+              choices?: Array<{
+                delta?: {
+                  content?: string;
+                  tool_calls?: Array<{
+                    id?: string;
+                    index?: number;
+                    function?: { name?: string; arguments?: string };
+                  }>;
+                };
+              }>;
+            };
             const delta = json.choices?.[0]?.delta;
             if (!delta) continue;
 
-            // 处理 tool_calls
             if (delta.tool_calls) {
               for (const toolCall of delta.tool_calls) {
-                yield {
+              yield {
                   type: 'tool_call',
                   toolCall: {
                     id: toolCall.id || '',
+                    type: 'function' as const,
                     function: {
                       name: toolCall.function?.name || '',
                       arguments: toolCall.function?.arguments || '',
                     },
                   },
+                  toolCallIndex: typeof toolCall.index === 'number' ? toolCall.index : undefined,
                 };
               }
               continue;
             }
 
-            // 处理文本内容
             if (delta.content) {
               yield { type: 'text', content: delta.content };
             }
@@ -189,15 +236,13 @@ export class OpenAICompatibleProvider {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await this.chatComplete(
+      const result = await this.chatComplete(
         [{ role: 'user', content: 'Hi' }],
         { temperature: 0 }
       );
-      return response.length > 0;
+      return result.content.length > 0;
     } catch {
       return false;
     }
   }
-
-
 }

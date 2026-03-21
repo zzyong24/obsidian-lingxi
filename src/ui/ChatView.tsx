@@ -52,6 +52,7 @@ export default class ChatView extends ItemView {
         archiver={this.plugin.archiver}
         ragManager={this.plugin.ragManager}
         conversationManager={this.plugin.conversationManager}
+        toolCallHandler={this.plugin.toolCallHandler}
         onNewChat={() => {
           // 新建对话时的回调
         }}
