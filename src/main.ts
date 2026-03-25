@@ -149,25 +149,23 @@ export default class AIChatPlugin extends Plugin {
   }
 
   /**
-   * 测试提供商连接
+   * 测试提供商连接，返回 null 表示成功，返回错误信息字符串表示失败
    */
-  async testProviderConnection(providerId: string): Promise<boolean> {
+  async testProviderConnection(providerId: string): Promise<string | null> {
     const provider = this.providerRegistry.getProvider(providerId);
     if (!provider) {
-      new Notice('未找到该提供商，请确认 API key 已配置');
-      return false;
+      const msg = '未找到该提供商，请确认 API key 已配置';
+      new Notice(msg);
+      return msg;
     }
-    try {
-      const result = await provider.testConnection();
-      if (result) {
-        new Notice('✅ 连接成功！');
-      } else {
-        new Notice('❌ 连接失败，请检查 API key 和 base URL');
-      }
-      return result;
-    } catch (error) {
-      new Notice(`❌ 连接失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      return false;
+    const result = await provider.testConnection();
+    if (result.success) {
+      new Notice('✅ 连接成功！');
+      return null;
+    } else {
+      const msg = result.error || '请检查 API key 和 Base URL';
+      new Notice(`❌ 连接失败: ${msg}`);
+      return msg;
     }
   }
 }

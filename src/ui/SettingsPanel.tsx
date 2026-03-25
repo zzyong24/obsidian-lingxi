@@ -9,7 +9,7 @@ import { AIChatSettings, ProviderConfig } from '@/types';
 interface SettingsPanelProps {
   settings: AIChatSettings;
   onSettingsChange: (settings: AIChatSettings) => void;
-  onTestConnection: (providerId: string) => Promise<boolean>;
+  onTestConnection: (providerId: string) => Promise<string | null>;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -18,7 +18,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onTestConnection,
 }) => {
   const [localSettings, setLocalSettings] = useState<AIChatSettings>(settings);
-  const [testResults, setTestResults] = useState<Map<string, boolean | null>>(new Map());
+  const [testResults, setTestResults] = useState<Map<string, string | null | 'loading' | 'ok'>>(new Map());
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -39,12 +39,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   }, [localSettings, onSettingsChange]);
 
   const handleTestConnection = useCallback(async (providerId: string) => {
-    setTestResults(prev => new Map(prev).set(providerId, null)); // loading
+    setTestResults(prev => new Map(prev).set(providerId, 'loading'));
     try {
-      const result = await onTestConnection(providerId);
-      setTestResults(prev => new Map(prev).set(providerId, result));
-    } catch {
-      setTestResults(prev => new Map(prev).set(providerId, false));
+      const error = await onTestConnection(providerId);
+      setTestResults(prev => new Map(prev).set(providerId, error === null ? 'ok' : error));
+    } catch (e) {
+      setTestResults(prev => new Map(prev).set(providerId, e instanceof Error ? e.message : '未知错误'));
     }
   }, [onTestConnection]);
 
@@ -96,11 +96,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 onClick={() => { void handleTestConnection(provider.id); }}
                 disabled={!provider.apiKey}
               >
-                {testResults.get(provider.id) === null ? '测试中...' :
-                  testResults.get(provider.id) === true ? '✓ 连接成功' :
-                  testResults.get(provider.id) === false ? '✗ 连接失败' :
+                {testResults.get(provider.id) === 'loading' ? '测试中...' :
+                  testResults.get(provider.id) === 'ok' ? '✓ 连接成功' :
+                  testResults.get(provider.id) ? '✗ 连接失败' :
                   '测试连接'}
               </button>
+              {(() => {
+                const r = testResults.get(provider.id);
+                if (r && r !== 'loading' && r !== 'ok') {
+                  return <div className="ai-chat-settings-test-error">{r}</div>;
+                }
+                return null;
+              })()}
             </div>
           </details>
         </div>

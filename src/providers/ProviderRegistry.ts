@@ -47,7 +47,10 @@ export class ProviderRegistry {
    * 根据模型字符串（格式: providerId:modelName）获取提供商和模型
    */
   resolveModel(modelString: string): { provider: OpenAICompatibleProvider; model: string } | null {
-    const [providerId, modelName] = modelString.split(':');
+    const colonIndex = modelString.indexOf(':');
+    if (colonIndex === -1) return null;
+    const providerId = modelString.substring(0, colonIndex);
+    const modelName = modelString.substring(colonIndex + 1);
     const provider = this.providers.get(providerId);
     if (!provider) return null;
     return { provider, model: modelName || '' };

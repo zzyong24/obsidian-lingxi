@@ -232,17 +232,41 @@ export class OpenAICompatibleProvider {
   }
 
   /**
-   * 测试连接是否有效
+   * 测试连接是否有效，返回成功状态和可能的错误信息
    */
-  async testConnection(): Promise<boolean> {
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const result = await this.chatComplete(
-        [{ role: 'user', content: 'Hi' }],
-        { temperature: 0 }
-      );
-      return result.content.length > 0;
-    } catch {
-      return false;
+      const url = `${this.baseUrl}/chat/completions`;
+      const body = {
+        model: this.defaultModel,
+        messages: [{ role: 'user', content: 'Hi' }],
+        temperature: 0,
+        stream: false,
+        max_tokens: 1,
+      };
+      const response = await globalThis.fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          const message = errorJson.error?.message || errorJson.message || errorText;
+          return { success: false, error: `${response.status}: ${message}` };
+        } catch {
+          return { success: false, error: `${response.status}: ${errorText}` };
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 }

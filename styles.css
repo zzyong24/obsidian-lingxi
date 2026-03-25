@@ -549,6 +549,17 @@
   cursor: not-allowed;
 }
 
+.ai-chat-settings-test-error {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--background-modifier-error);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
 /* ===== 图片上传 & 预览 ===== */
 
 /* 输入区拖拽高亮 */
