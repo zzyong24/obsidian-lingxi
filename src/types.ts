@@ -224,6 +224,13 @@ export const DEFAULT_SETTINGS: AIChatSettings = {
       apiKey: '',
       defaultModel: 'glm-4',
     },
+    {
+      id: 'minimax',
+      name: 'MiniMax',
+      baseUrl: 'https://api.minimax.chat/v1',
+      apiKey: '',
+      defaultModel: 'MiniMax-Text-01',
+    },
   ],
   defaultTextModel: 'deepseek:deepseek-chat',
   defaultVisionModel: '',
