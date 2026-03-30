@@ -18,7 +18,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onTestConnection,
 }) => {
   const [localSettings, setLocalSettings] = useState<AIChatSettings>(settings);
-  const [testResults, setTestResults] = useState<Map<string, string | null | 'loading' | 'ok'>>(new Map());
+  const [testResults, setTestResults] = useState<Map<string, string | null>>(new Map());
 
   useEffect(() => {
     setLocalSettings(settings);
@@ -291,6 +291,143 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <span>1（高精确）</span>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Harness 智能记忆设置 */}
+      <h3>智能记忆 (Harness)</h3>
+      <div className="ai-chat-rag-card">
+        {/* 启用开关 */}
+        <div className="ai-chat-rag-toggle-row">
+          <div className="ai-chat-rag-toggle-info">
+            <span className="ai-chat-rag-toggle-label">启用持久记忆</span>
+            <span className="ai-chat-rag-toggle-desc">
+              AI 会记住你的偏好和关键信息，下次对话自动加载
+            </span>
+          </div>
+          <label className="ai-chat-switch">
+            <input
+              type="checkbox"
+              checked={localSettings.harnessEnabled}
+              onChange={(e) => updateSetting('harnessEnabled', e.target.checked)}
+            />
+            <span className="ai-chat-switch-slider" />
+          </label>
+        </div>
+
+        {localSettings.harnessEnabled && (
+          <div className="ai-chat-rag-body">
+            {/* 记忆设置 */}
+            <div className="ai-chat-rag-section">
+              <div className="ai-chat-rag-section-title">🧠 记忆设置</div>
+
+              <div className="ai-chat-rag-toggle-row">
+                <div className="ai-chat-rag-toggle-info">
+                  <span className="ai-chat-rag-toggle-label">自动提取记忆</span>
+                  <span className="ai-chat-rag-toggle-desc">
+                    对话结束后自动提取关键信息保存为记忆
+                  </span>
+                </div>
+                <label className="ai-chat-switch">
+                  <input
+                    type="checkbox"
+                    checked={localSettings.harnessAutoExtract}
+                    onChange={(e) => updateSetting('harnessAutoExtract', e.target.checked)}
+                  />
+                  <span className="ai-chat-switch-slider" />
+                </label>
+              </div>
+
+              <div className="ai-chat-settings-field">
+                <div className="ai-chat-rag-slider-header">
+                  <label>记忆条目上限</label>
+                  <span className="ai-chat-rag-slider-value">{localSettings.harnessMemoryLimit}</span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="2000"
+                  step="10"
+                  value={localSettings.harnessMemoryLimit}
+                  onChange={(e) => updateSetting('harnessMemoryLimit', parseInt(e.target.value))}
+                  className="ai-chat-rag-range"
+                />
+                <div className="ai-chat-rag-range-labels">
+                  <span>10（精简）</span>
+                  <span>2000（丰富）</span>
+                </div>
+              </div>
+
+              <div className="ai-chat-settings-field">
+                <div className="ai-chat-rag-slider-header">
+                  <label>每次召回条数</label>
+                  <span className="ai-chat-rag-slider-value">{localSettings.harnessRecallTopK}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="20"
+                  step="1"
+                  value={localSettings.harnessRecallTopK}
+                  onChange={(e) => updateSetting('harnessRecallTopK', parseInt(e.target.value))}
+                  className="ai-chat-rag-range"
+                />
+                <div className="ai-chat-rag-range-labels">
+                  <span>1（精简）</span>
+                  <span>20（丰富）</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 压缩设置 */}
+            <div className="ai-chat-rag-section">
+              <div className="ai-chat-rag-section-title">🗜️ 上下文压缩</div>
+
+              <div className="ai-chat-rag-toggle-row">
+                <div className="ai-chat-rag-toggle-info">
+                  <span className="ai-chat-rag-toggle-label">启用自动压缩</span>
+                  <span className="ai-chat-rag-toggle-desc">
+                    对话过长时自动压缩上下文，节省 token
+                  </span>
+                </div>
+                <label className="ai-chat-switch">
+                  <input
+                    type="checkbox"
+                    checked={localSettings.harnessCompactionEnabled}
+                    onChange={(e) => updateSetting('harnessCompactionEnabled', e.target.checked)}
+                  />
+                  <span className="ai-chat-switch-slider" />
+                </label>
+              </div>
+            </div>
+
+            {/* 自驱动任务 */}
+            <div className="ai-chat-rag-section">
+              <div className="ai-chat-rag-section-title">🤖 自驱动任务</div>
+
+              <div className="ai-chat-rag-toggle-row">
+                <div className="ai-chat-rag-toggle-info">
+                  <span className="ai-chat-rag-toggle-label">启用自驱动任务</span>
+                  <span className="ai-chat-rag-toggle-desc">
+                    打开插件时自动检查并执行到期任务（周报、待办检查等）
+                  </span>
+                </div>
+                <label className="ai-chat-switch">
+                  <input
+                    type="checkbox"
+                    checked={localSettings.harnessSchedulerEnabled}
+                    onChange={(e) => updateSetting('harnessSchedulerEnabled', e.target.checked)}
+                  />
+                  <span className="ai-chat-switch-slider" />
+                </label>
+              </div>
+              {localSettings.harnessSchedulerEnabled && (
+                <small className="ai-chat-settings-hint">
+                  任务定义在 vault/.harness/tasks/ 目录下，可直接编辑 .md 文件自定义
+                </small>
+              )}
             </div>
           </div>
         )}
