@@ -1,0 +1,88 @@
+{
+  "providers": [
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "apiKey": "",
+      "defaultModel": "Pro/zai-org/GLM-4.7"
+    },
+    {
+      "id": "qwen",
+      "name": "通义千问",
+      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "apiKey": "",
+      "defaultModel": "qwen-plus",
+      "defaultEmbeddingModel": "text-embedding-v3"
+    },
+    {
+      "id": "doubao",
+      "name": "豆包",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "apiKey": "",
+      "defaultModel": "doubao-seed-1-8-251228"
+    },
+    {
+      "id": "kimi",
+      "name": "Kimi",
+      "baseUrl": "https://api.moonshot.cn/v1",
+      "apiKey": "",
+      "defaultModel": "moonshot-v1-32k"
+    },
+    {
+      "id": "zhipu",
+      "name": "智谱",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "apiKey": "",
+      "defaultModel": "glm-4",
+      "defaultEmbeddingModel": "embedding-3"
+    },
+    {
+      "id": "minimax",
+      "name": "MiniMax",
+      "baseUrl": "https://api.minimax.chat/v1",
+      "apiKey": "",
+      "defaultModel": ""
+    },
+    {
+      "id": "siliconflow",
+      "name": "SiliconFlow",
+      "baseUrl": "https://api.siliconflow.cn/v1",
+      "apiKey": "",
+      "defaultModel": "deepseek-ai/DeepSeek-V3",
+      "defaultEmbeddingModel": "BAAI/bge-large-zh-v1.5"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "",
+      "defaultModel": "gpt-4o-mini",
+      "defaultEmbeddingModel": "text-embedding-3-small"
+    }
+  ],
+  "defaultTextModel": "doubao:doubao-seed-1-8-251228",
+  "defaultVisionModel": "doubao:doubao-seed-1-8-251228",
+  "scenesFolder": "skills-scenes",
+  "defaultArchiveFolder": "AI笔记",
+  "autoArchive": false,
+  "confirmBeforeArchive": false,
+  "sendShortcut": "ctrl-enter",
+  "streamOutput": true,
+  "temperature": 0.7,
+  "maxContextMessages": 20,
+  "ragEnabled": true,
+  "ragEmbeddingProvider": "",
+  "ragEmbeddingModel": "BAAI/bge-large-zh-v1.5",
+  "ragEmbeddingApiKey": "",
+  "ragEmbeddingBaseUrl": "https://api.siliconflow.cn/v1",
+  "ragTopK": 3,
+  "ragSimilarityThreshold": 0.3,
+  "harnessEnabled": true,
+  "harnessAutoExtract": true,
+  "harnessMemoryLimit": 500,
+  "harnessRecallTopK": 5,
+  "harnessCompactionEnabled": true,
+  "harnessCompactionThreshold": 0.85,
+  "harnessSchedulerEnabled": true
+}

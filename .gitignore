@@ -4,8 +4,10 @@ node_modules
 # Build sourcemaps
 *.js.map
 
-# Obsidian
+# Obsidian plugin settings (contains API keys)
 data.json
+# But track the sanitized example
+!data.json.example
 
 # IDE
 .idea/
