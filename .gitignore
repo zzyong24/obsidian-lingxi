@@ -9,6 +9,9 @@ data.json
 # But track the sanitized example
 !data.json.example
 
+# Environment variables (contains secrets)
+.env
+
 # IDE
 .idea/
 .vscode/
@@ -16,3 +19,4 @@ data.json
 # OS
 .DS_Store
 Thumbs.db
+scripts/
