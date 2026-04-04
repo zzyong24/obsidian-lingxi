@@ -77,7 +77,13 @@ export class OpenAICompatibleProvider {
         'Authorization': `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
+      throw: false, // 不自动抛异常，手动处理错误
     });
+
+    if (response.status >= 400) {
+      const errBody = typeof response.json === 'object' ? JSON.stringify(response.json) : response.text;
+      throw new Error(`API 请求失败 (${response.status}): url=${url}, model=${model}, body=${errBody}`);
+    }
 
     const data = response.json as {
       choices?: Array<{

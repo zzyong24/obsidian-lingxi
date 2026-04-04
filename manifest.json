@@ -1,7 +1,7 @@
 {
 	"id": "lingxi",
     "name": "Lingxi",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"minAppVersion": "0.15.0",
 "description": "Skill-driven AI chat plugin — chat with AI in the sidebar, auto-archive conversations as structured notes. Supports DeepSeek, Qwen, Doubao, Kimi, Zhipu and more Chinese LLMs.",
 	"author": "月明水清深",

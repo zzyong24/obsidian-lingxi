@@ -3,7 +3,7 @@
  * 管理插件设置的加载、保存和访问
  */
 
-import { AIChatSettings, DEFAULT_SETTINGS } from '@/types';
+import { AIChatSettings, DEFAULT_SETTINGS, PROVIDER_PRESETS } from '@/types';
 
 /** 当前设置的单例存储 */
 let currentSettings: AIChatSettings = { ...DEFAULT_SETTINGS };
@@ -68,7 +68,19 @@ export function sanitizeSettings(saved: Partial<AIChatSettings> | null): AIChatS
 
   for (const defaultProvider of DEFAULT_SETTINGS.providers) {
     if (!savedProviderIds.has(defaultProvider.id)) {
-      result.providers.push(defaultProvider);
+      result.providers.push({ ...defaultProvider });
+    }
+  }
+
+  // 对已有 Provider 补全 defaultEmbeddingModel（从预设表中同步）
+  for (const provider of result.providers) {
+    const preset = PROVIDER_PRESETS.find(p => p.id === provider.id);
+    if (preset && !provider.defaultEmbeddingModel && preset.defaultEmbeddingModel) {
+      provider.defaultEmbeddingModel = preset.defaultEmbeddingModel;
+    }
+    // 如果 baseUrl 为空，从预设恢复
+    if (preset && !provider.baseUrl) {
+      provider.baseUrl = preset.baseUrl;
     }
   }
 
@@ -84,6 +96,13 @@ export function sanitizeSettings(saved: Partial<AIChatSettings> | null): AIChatS
   // RAG 设置校验
   result.ragTopK = Math.max(1, Math.min(10, Number(result.ragTopK) || 3));
   result.ragSimilarityThreshold = Math.max(0, Math.min(1, Number(result.ragSimilarityThreshold) || 0.3));
+  if (result.ragEmbeddingApiKey === undefined) result.ragEmbeddingApiKey = '';
+  if (result.ragEmbeddingBaseUrl === undefined) result.ragEmbeddingBaseUrl = '';
+
+  // Harness 设置校验
+  result.harnessMemoryLimit = Math.max(10, Math.min(2000, Number(result.harnessMemoryLimit) || 500));
+  result.harnessRecallTopK = Math.max(1, Math.min(20, Number(result.harnessRecallTopK) || 5));
+  result.harnessCompactionThreshold = Math.max(0.5, Math.min(0.95, Number(result.harnessCompactionThreshold) || 0.85));
 
   return result;
 }

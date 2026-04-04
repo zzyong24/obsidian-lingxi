@@ -22,35 +22,50 @@ export class AutoArchiver {
    * 归档内容到 Vault
    */
   async archive(options: ArchiveOptions): Promise<ArchiveResult> {
-    const { content, skill, title, tags } = options;
+    const { content, skill, title, tags, type, folder: overrideFolder } = options;
 
-    // 确定目标文件夹：优先使用场景内的 _output 子目录
-    const folder = this.resolveOutputFolder(skill);
+    // 确定目标文件夹
+    const folder = overrideFolder || this.resolveOutputFolder(skill);
     await this.ensureFolder(folder);
 
-    // 从 AI 回复中提取第一行 # 标题（AI 已被要求在第一行输出标题）
+    // 从 AI 回复中提取第一行 # 标题
     const { aiTitle, bodyContent } = this.extractAITitle(content);
 
-    // 确定最终标题：优先用 AI 返回的标题 > 调用方指定的 title > 正则提取 > 兜底关键词
-    const displayTitle = aiTitle 
-      || title 
-      || this.extractContentTitle(bodyContent) 
+    // 确定最终标题
+    const displayTitle = aiTitle
+      || title
+      || this.extractContentTitle(bodyContent)
       || (skill ? `${skill.name}：${this.extractKeywords(bodyContent)}` : this.extractKeywords(bodyContent));
 
-    // 生成文件名
-    const fileName = this.generateFileName(skill, displayTitle, bodyContent);
-    const filePath = `${folder}/${fileName}`;
+    // 生成文件名（自动处理重名）
+    const baseFileName = this.generateFileName(skill, displayTitle, bodyContent);
+    const filePath = await this.resolveUniqueFilePath(folder, baseFileName);
+    const fileName = filePath.split('/').pop() || baseFileName;
 
     // 生成 Frontmatter
-    const frontmatter = this.buildFrontmatter(skill, tags);
+    const frontmatter = this.buildFrontmatter(skill, tags, type);
 
-    // 组装完整内容（标题已提取，正文中不再重复）
+    // 组装完整内容
     const fullContent = `${frontmatter}\n# ${displayTitle}\n\n${bodyContent}\n`;
 
     // 创建文件
     await this.app.vault.create(filePath, fullContent);
 
     return { filePath, fileName };
+  }
+
+  /**
+   * 解析唯一文件路径：文件已存在时自动加 _2/_3 后缀
+   */
+  private async resolveUniqueFilePath(folder: string, fileName: string): Promise<string> {
+    const base = fileName.replace(/\.md$/, '');
+    let candidate = `${folder}/${fileName}`;
+    let counter = 2;
+    while (this.app.vault.getAbstractFileByPath(candidate)) {
+      candidate = `${folder}/${base}_${counter}.md`;
+      counter++;
+    }
+    return candidate;
   }
 
   /**
@@ -244,23 +259,39 @@ export class AutoArchiver {
   }
 
   /**
-   * 构建 Frontmatter
+   * 构建统一 Frontmatter（7 必填字段，兼容 Dataview）
+   * type / topic / created / modified / tags / origin / source / status
    */
-  private buildFrontmatter(skill?: Skill, tags?: string[]): string {
+  private buildFrontmatter(skill?: Skill, tags?: string[], extraType?: string): string {
     const now = localNow();
-    const allTags = [
-      ...(skill?.triggerKeywords?.slice(0, 3) || []),
-      ...(skill?.category ? [skill.category] : []),
-      ...(tags || []),
-    ];
+    const type = extraType || 'note';
+    const topic = skill?.category?.toLowerCase().replace(/\s+/g, '-') || skill?.sceneId || 'general';
 
-    const tagStr = allTags.length > 0
-      ? `\ntags: [${allTags.map(t => `"${t}"`).join(', ')}]`
-      : '';
+    /** 清洗单个 tag：空格→连字符，去除非法字符 */
+    const cleanTag = (t: string) =>
+      t.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fa5-]/g, '').slice(0, 30);
+
+    const allTags = [
+      type,
+      cleanTag(topic),
+      'lingxi',
+      ...(skill?.triggerKeywords?.slice(0, 2).map(cleanTag) || []),
+      ...(tags?.map(cleanTag) || []),
+    ].filter(Boolean);
+
+    // 去重
+    const uniqueTags = [...new Set(allTags)];
+    const tagStr = uniqueTags.map(t => `"${t}"`).join(', ');
 
     return `---
-created: "${now}"${skill ? `\nskill: ${skill.name}` : ''}
-source: ai-chat-plugin${tagStr}
+type: "${type}"
+topic: "${cleanTag(topic)}"
+created: "${now}"
+modified: "${now}"
+tags: [${tagStr}]
+origin: "crafted"
+source: "lingxi"
+status: "active"${skill ? `\nskill: "${skill.name}"` : ''}
 ---\n`;
   }
 }

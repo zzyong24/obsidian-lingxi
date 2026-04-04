@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ChatMessage, ContentPart, Skill, Scene, NoteReference, ToolCall } from '@/types';
+import { ChatMessage, ContentPart, Skill, Scene, NoteReference, ToolCall, RAGSource } from '@/types';
 import { MessageBubble } from './MessageBubble';
 import { InputArea, ImageAttachment } from './InputArea';
 import { TFile } from 'obsidian';
@@ -17,7 +17,12 @@ import { ProviderRegistry } from '@/providers';
 import { SceneManager } from '@/skills';
 import { AutoArchiver } from '@/archive/AutoArchiver';
 import { RAGManager } from '@/search/RAGManager';
+import { ContentFetcher, isValidUrl } from '@/search/ContentFetcher';
 import { ToolCallHandler } from '@/skills/ToolCallHandler';
+import { MemoryManager } from '@/harness/MemoryManager';
+import { ContextBuilder } from '@/harness/ContextBuilder';
+import { CompactionEngine } from '@/harness/CompactionEngine';
+import { WorklogManager } from '@/harness/WorklogManager';
 import { getSettings } from '@/settings';
 import { App, Notice } from 'obsidian';
 
@@ -38,6 +43,11 @@ interface ChatProps {
   ragManager: RAGManager;
   conversationManager: ConversationManager;
   toolCallHandler: ToolCallHandler;
+  memoryManager: MemoryManager;
+  contextBuilder: ContextBuilder;
+  compactionEngine: CompactionEngine;
+  worklogManager: WorklogManager;
+  contentFetcher: ContentFetcher;
   onNewChat: () => void;
 }
 
@@ -49,6 +59,11 @@ export const Chat: React.FC<ChatProps> = ({
   ragManager,
   conversationManager,
   toolCallHandler,
+  memoryManager,
+  contextBuilder,
+  compactionEngine,
+  worklogManager,
+  contentFetcher,
   onNewChat,
 }) => {
   const settings = getSettings();
@@ -60,6 +75,11 @@ export const Chat: React.FC<ChatProps> = ({
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [currentModel, setCurrentModel] = useState(settings.defaultTextModel);
+
+  // Harness 状态
+  const [memoryCount, setMemoryCount] = useState(0);
+  // RAG 状态：上次检索命中的来源列表
+  const [ragSources, setRagSources] = useState<RAGSource[]>([]);
 
   // refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -96,6 +116,132 @@ export const Chat: React.FC<ChatProps> = ({
 
     void (async () => {
     abortRef.current = false;
+
+    // ===== URL 知识卡片流程 =====
+    // 触发条件（二选一）：
+    //   1. 纯 URL（整条消息就是一个 URL）
+    //   2. 明确的保存指令前缀 + URL，如「知识卡片保存: url」「收藏 url」「保存 url」
+    const trimmedText = text.trim();
+    const CARD_PREFIXES = /^(知识卡片保存|收藏|保存|save|collect)[：:：\s]+/i;
+    const isPureUrl = isValidUrl(trimmedText);
+    const prefixMatch = trimmedText.match(CARD_PREFIXES);
+    const extractedUrl = isPureUrl
+      ? trimmedText
+      : prefixMatch
+        ? trimmedText.slice(prefixMatch[0].length).trim().replace(/[。，、）\)]+$/, '')
+        : null;
+
+    if (
+      extractedUrl && isValidUrl(extractedUrl) &&
+      (!images || images.length === 0) &&
+      (!noteRefs || noteRefs.length === 0)
+    ) {
+      setIsLoading(true);
+      // 先显示用户消息
+      const userMsg: ChatMessage = { role: 'user', content: trimmedText };
+      conversationManager.append(userMsg);
+      syncMessages();
+
+      // 抓取内容
+      const fetchResult = await contentFetcher.fetch(extractedUrl);
+
+      if (!fetchResult.ok) {
+        // 抓取失败：给出友好提示
+        const errMsg: ChatMessage = {
+          role: 'assistant',
+          content: fetchResult.error || '无法抓取该页面内容。',
+        };
+        conversationManager.append(errMsg);
+        syncMessages();
+        setIsLoading(false);
+        return;
+      }
+
+      // 抓取成功：让 LLM 生成知识卡片
+      const resolved = providerRegistry.resolveModel(currentModel);
+      if (!resolved) {
+        new Notice('请先配置模型 API key');
+        setIsLoading(false);
+        return;
+      }
+      const { provider, model } = resolved;
+
+      const cardPrompt = `请基于以下网页内容，生成一份精简的知识卡片（Markdown 格式）：
+
+**来源**：${fetchResult.title}（${extractedUrl}）
+${fetchResult.author ? `**作者**：${fetchResult.author}` : ''}
+
+**正文内容**：
+${fetchResult.content.slice(0, 3000)}${fetchResult.content.length > 3000 ? '\n\n（正文过长，已截取前半部分）' : ''}
+
+---
+
+请输出以下结构：
+# 知识卡片标题（一句话概括核心内容）
+
+## 核心摘要
+（2-3 句话总结文章要点）
+
+## 关键要点
+- 要点 1
+- 要点 2
+- 要点 3
+
+## 思考问题
+1. （与你自身经历/工作的关联？）
+2. （这个观点你有什么不同意见？）
+3. （能落地的最小行动是什么？）`;
+
+      const cardMessages: ChatMessage[] = [
+        { role: 'system', content: '你是一个知识整理助手，擅长从文章中提取核心价值并生成结构化知识卡片。' },
+        { role: 'user', content: cardPrompt },
+      ];
+
+      try {
+        setStreamingContent('');
+        let fullContent = '';
+
+        if (settings.streamOutput) {
+          const stream = provider.chatStream(cardMessages, { model, temperature: 0.3 });
+          for await (const chunk of stream) {
+            if (abortRef.current) break;
+            if (chunk.type === 'text' && chunk.content) {
+              fullContent += chunk.content;
+              setStreamingContent(fullContent);
+            }
+          }
+        } else {
+          const result = await provider.chatComplete(cardMessages, { model, temperature: 0.3 });
+          fullContent = result.content;
+        }
+
+        setStreamingContent('');
+        const assistantMsg: ChatMessage = { role: 'assistant', content: fullContent };
+        conversationManager.append(assistantMsg);
+        syncMessages();
+
+        // 自动归档为知识卡片
+        if (fullContent) {
+          try {
+            await archiver.archive({
+              content: fullContent,
+              type: 'card',
+              folder: settings.defaultArchiveFolder + '/知识卡片',
+              tags: ['知识卡片', 'web'],
+            });
+          } catch (e) {
+            console.error('[Lingxi] 知识卡片归档失败:', e);
+          }
+        }
+      } catch (error) {
+        console.error('[Lingxi] 知识卡片生成失败:', error);
+      } finally {
+        setIsLoading(false);
+        setStreamingContent('');
+      }
+      return; // 跳过普通发送流程
+    }
+    // ===== URL 知识卡片流程结束 =====
 
     // 解析模型
     const resolved = providerRegistry.resolveModel(currentModel);
@@ -216,33 +362,43 @@ export const Chat: React.FC<ChatProps> = ({
         }
       }
 
-      // 使用 SceneManager 构建完整的 System Prompt
-      const systemPrompt = sceneManager.buildSystemPrompt(
-        activeScene?.id,
-        activeSkill || undefined,
-      );
-
-      // RAG 检索：根据用户输入检索相关知识片段
+      // 使用 ContextBuilder 构建完整的 System Prompt（包含记忆）
       let ragContext = '';
       try {
-        ragContext = await ragManager.retrieve(text);
+        const ragResult = await ragManager.retrieve(text);
+        ragContext = ragResult.context;
+        setRagSources(ragResult.sources);
       } catch (error) {
         console.error('[Lingxi] RAG 检索失败:', error);
+        setRagSources([]);
+      }
+
+      const { systemPrompt, memoryCount: recalledCount } = await contextBuilder.build(
+        activeScene?.id,
+        activeSkill || undefined,
+        text,
+        ragContext || undefined,
+      );
+      setMemoryCount(recalledCount);
+
+      // 获取上下文消息并应用 Micro Compaction
+      let contextMessages = conversationManager.getContextMessages();
+      contextMessages = compactionEngine.microCompact(contextMessages);
+
+      // 检查是否需要 Auto Compaction
+      const autoCompacted = await compactionEngine.autoCompact(
+        contextMessages,
+        conversationManager.getConversation().id,
+      );
+      if (autoCompacted) {
+        contextMessages = autoCompacted;
       }
 
       // 构建消息列表
-      const contextMessages = conversationManager.getContextMessages();
       const messagesToSend: ChatMessage[] = [];
 
       if (systemPrompt) {
-        // 将 RAG 检索结果拼入 System Prompt
-        const fullSystemPrompt = ragContext
-          ? `${systemPrompt}\n\n---\n\n${ragContext}`
-          : systemPrompt;
-        messagesToSend.push({ role: 'system', content: fullSystemPrompt });
-      } else if (ragContext) {
-        // 无 System Prompt 但有 RAG 结果
-        messagesToSend.push({ role: 'system', content: ragContext });
+        messagesToSend.push({ role: 'system', content: systemPrompt });
       }
 
       // 添加非 system 消息，但最后一条用户消息替换为包含笔记全文的 API 版本
@@ -418,6 +574,20 @@ export const Chat: React.FC<ChatProps> = ({
               console.error('[Lingxi] 归档失败:', error);
             }
           }
+
+          // Harness: 对话结束后提取记忆（异步，不阻塞）
+          if (settings.harnessEnabled && settings.harnessAutoExtract) {
+            void memoryManager.extract(conversationManager.getMessages(), currentModel);
+          }
+
+          // 追加今日工作日志（静默，不阻塞）
+          if (settings.harnessEnabled) {
+            const conv = conversationManager.getConversation();
+            void worklogManager.appendConversation(
+              conversationManager.getMessages(),
+              conv.title || '无标题对话',
+            );
+          }
         }
 
         // 正常退出循环
@@ -435,7 +605,8 @@ export const Chat: React.FC<ChatProps> = ({
   }, [
     app, isLoading, currentModel, providerRegistry, conversationManager,
     selectedScene, selectedSkill, sceneManager, settings, archiver, ragManager,
-    toolCallHandler, syncMessages,
+    toolCallHandler, memoryManager, contextBuilder, compactionEngine,
+    worklogManager, contentFetcher, syncMessages,
   ]);
 
   /**
@@ -468,7 +639,7 @@ export const Chat: React.FC<ChatProps> = ({
   }, []);
 
   /**
-   * 新建对话
+   * 新建对话（触发记忆提取后再切换）
    */
   const handleNewChat = useCallback(() => {
     conversationManager.newConversation();
@@ -476,6 +647,8 @@ export const Chat: React.FC<ChatProps> = ({
     setSelectedSkill(null);
     setSelectedScene(null);
     setStreamingContent('');
+    setMemoryCount(0);
+    setRagSources([]);
     toolCallActiveRef.current = false;
     onNewChat();
   }, [conversationManager, onNewChat]);
@@ -496,6 +669,19 @@ export const Chat: React.FC<ChatProps> = ({
           currentModel={currentModel}
           onModelChange={handleModelChange}
         />
+        {settings.harnessEnabled && memoryCount > 0 && (
+          <span className="ai-chat-memory-badge" title={`已加载 ${memoryCount} 条记忆`}>
+            🧠 {memoryCount}
+          </span>
+        )}
+        {settings.ragEnabled && ragSources.length > 0 && (
+          <span
+            className="ai-chat-rag-badge"
+            title={ragSources.map(s => `${s.fileName} (${Math.round(s.similarity * 100)}%)`).join('\n')}
+          >
+            📚 {ragSources.length}
+          </span>
+        )}
         <button
           className="ai-chat-new-chat-btn"
           onClick={handleNewChat}
@@ -529,6 +715,19 @@ export const Chat: React.FC<ChatProps> = ({
               >×</button>
             </span>
           )}
+        </div>
+      )}
+
+      {/* RAG 来源展示条 */}
+      {settings.ragEnabled && ragSources.length > 0 && (
+        <div className="ai-chat-rag-sources-bar">
+          <span className="ai-chat-rag-sources-label">📚 引用：</span>
+          {ragSources.map((s, i) => (
+            <span key={i} className="ai-chat-rag-source-chip" title={`相关度 ${Math.round(s.similarity * 100)}%`}>
+              {s.fileName}
+              <span className="ai-chat-rag-source-pct">{Math.round(s.similarity * 100)}%</span>
+            </span>
+          ))}
         </div>
       )}
 

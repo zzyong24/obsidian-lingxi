@@ -11,7 +11,7 @@
 import { App, TFile, Notice } from 'obsidian';
 import { EmbeddingService } from './EmbeddingService';
 import { VectorStore, SearchResult } from './VectorStore';
-import { AIChatSettings } from '@/types';
+import { AIChatSettings, RAGRetrieveResult } from '@/types';
 
 /** 文本片段（用于切分） */
 interface TextChunk {
@@ -47,25 +47,34 @@ export class RAGManager {
       return;
     }
 
-    // 查找 Embedding 提供商
-    const provider = this.settings.providers.find(p => p.id === this.settings.ragEmbeddingProvider);
-    if (!provider || !provider.apiKey) {
-      console.debug('[Lingxi RAG] 未配置 Embedding 提供商或 API Key');
+    // 构建 Embedding 用的 ProviderConfig：
+    // 优先使用独立配置的 Key/BaseURL，否则降级到所选 Provider 的对话配置
+    const baseProvider = this.settings.providers.find(p => p.id === this.settings.ragEmbeddingProvider);
+
+    const apiKey = this.settings.ragEmbeddingApiKey?.trim() || baseProvider?.apiKey || '';
+    const baseUrl = this.settings.ragEmbeddingBaseUrl?.trim() || baseProvider?.baseUrl || '';
+
+    if (!apiKey || !baseUrl) {
+      console.debug('[Lingxi RAG] 未配置 Embedding API Key 或 Base URL');
       return;
     }
 
     const model = this.settings.ragEmbeddingModel || 'text-embedding-v3';
-    this.embeddingService = new EmbeddingService(provider, model);
+    this.embeddingService = new EmbeddingService(
+      { id: 'rag', name: 'RAG', baseUrl, apiKey, defaultModel: model },
+      model,
+    );
 
-    // 加载已有索引
-    const modelKey = `${provider.id}:${model}`;
+    // 加载已有索引（用 baseUrl+model 作为 key，避免切换服务商时混用旧索引）
+    const modelKey = `${baseUrl}:${model}`;
     await this.vectorStore.load(modelKey);
 
-    // 排除场景目录和归档目录
+    // 排除场景目录、归档目录、以及所有灵犀系统文件（记忆/日志/任务结果等不应被 RAG 索引）
     this.excludePaths = [
       this.app.vault.configDir,
       this.settings.defaultArchiveFolder,
       this.settings.scenesFolder,
+      'lingxi-harness',  // 排除记忆、对话、工作日志、任务结果等系统文件
     ];
 
     this.initialized = true;
@@ -123,7 +132,12 @@ export class RAGManager {
 
       await this.vectorStore.save();
       const stats = this.vectorStore.getStats();
-      console.debug(`[Lingxi RAG] 索引完成：新增/更新 ${indexed} 个文件，跳过 ${skipped} 个，总计 ${stats.totalFiles} 个文件 ${stats.totalRecords} 条片段`);
+      const indexPath = 'lingxi-harness/vector-index.json';
+      console.debug(`[Lingxi RAG] 索引完成：新增/更新 ${indexed} 个文件，跳过 ${skipped} 个，总计 ${stats.totalFiles} 个文件 ${stats.totalRecords} 条片段\n索引文件：${indexPath}`);
+      // 首次建索引（indexed > 0）时 Notice 提示
+      if (indexed > 0) {
+        new Notice(`✅ 知识索引已更新：${stats.totalFiles} 个文件，${stats.totalRecords} 条片段\n索引存储于 ${indexPath}`, 6000);
+      }
     } finally {
       this.isIndexing = false;
     }
@@ -168,7 +182,7 @@ export class RAGManager {
    */
   private splitIntoChunks(text: string, filePath: string): TextChunk[] {
     const chunks: TextChunk[] = [];
-    const maxChunkSize = 500; // 每片段最大字符数
+    const maxChunkSize = 300; // 每片段最大字符数（保守值，防止 413）
 
     // 按一级/二级标题切分
     const sections = text.split(/(?=^#{1,2}\s)/m);
@@ -224,10 +238,11 @@ export class RAGManager {
   /**
    * 检索与查询相关的知识片段
    * @param query 用户输入的文本
-   * @returns 格式化的知识上下文字符串，可直接注入 System Prompt
+   * @returns RAGRetrieveResult：context 注入 System Prompt，sources 供 UI 展示
    */
-  async retrieve(query: string): Promise<string> {
-    if (!this.initialized || !this.embeddingService) return '';
+  async retrieve(query: string): Promise<RAGRetrieveResult> {
+    const empty: RAGRetrieveResult = { context: '', sources: [] };
+    if (!this.initialized || !this.embeddingService) return empty;
 
     try {
       // 获取查询向量
@@ -240,13 +255,19 @@ export class RAGManager {
         this.settings.ragSimilarityThreshold,
       );
 
-      if (results.length === 0) return '';
+      if (results.length === 0) return empty;
 
       // 格式化检索结果
-      return this.formatRetrievalResults(results);
+      const context = this.formatRetrievalResults(results);
+      const sources = results.map(r => ({
+        fileName: r.filePath.replace(/\.md$/, '').split('/').pop() || '',
+        similarity: r.similarity,
+      }));
+
+      return { context, sources };
     } catch (error) {
       console.error('[Lingxi RAG] 检索失败:', error);
-      return '';
+      return empty;
     }
   }
 
@@ -329,10 +350,7 @@ export class RAGManager {
     }
 
     this.vectorStore.clear();
-    new Notice('正在重建知识索引...');
     await this.buildIndex();
-    const stats = this.vectorStore.getStats();
-    new Notice(`✅ 索引重建完成：${stats.totalFiles} 个文件，${stats.totalRecords} 条片段`);
   }
 
   /**

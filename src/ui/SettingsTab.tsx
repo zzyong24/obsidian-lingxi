@@ -30,6 +30,10 @@ export class AIChatSettingTab extends PluginSettingTab {
         settings={this.plugin.getSettings()}
         onSettingsChange={(settings) => { void this.plugin.savePluginSettings(settings); }}
         onTestConnection={(providerId) => this.plugin.testProviderConnection(providerId)}
+        onTestEmbedding={() => this.plugin.testEmbeddingConnection()}
+        onRebuildIndex={() => this.plugin.rebuildIndex()}
+        onEnhanceTaskPrompt={(name, desc, schedule) => this.plugin.enhanceTaskPrompt(name, desc, schedule)}
+        scheduler={this.plugin.scheduler}
       />
     );
   }

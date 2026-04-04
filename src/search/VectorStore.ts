@@ -55,9 +55,17 @@ export class VectorStore {
   }
 
   /**
-   * 获取索引文件路径
+   * 获取索引文件路径（新路径：lingxi-harness/vector-index.json）
    */
   private getIndexFilePath(): string {
+    return 'lingxi-harness/vector-index.json';
+  }
+
+  /**
+   * 旧索引路径（.obsidian/plugins/lingxi/vector-index.json）
+   * 用于向前兼容迁移
+   */
+  private getLegacyIndexFilePath(): string {
     return `${this.app.vault.configDir}/plugins/lingxi/vector-index.json`;
   }
 
@@ -75,11 +83,31 @@ export class VectorStore {
   }
 
   /**
-   * 加载索引文件
+   * 加载索引文件（自动迁移旧路径）
    */
   async load(currentModel: string): Promise<void> {
     try {
       const indexFile = this.getIndexFilePath();
+      const legacyFile = this.getLegacyIndexFilePath();
+
+      // 确保 lingxi-harness 目录存在
+      const dir = 'lingxi-harness';
+      if (!(await this.app.vault.adapter.exists(dir))) {
+        await this.app.vault.adapter.mkdir(dir);
+      }
+
+      // 旧路径迁移：把 .obsidian/plugins/lingxi/vector-index.json 移到新位置
+      const newExists = await this.app.vault.adapter.exists(indexFile);
+      if (!newExists) {
+        const legacyExists = await this.app.vault.adapter.exists(legacyFile);
+        if (legacyExists) {
+          console.debug('[Lingxi RAG] 迁移索引文件到 lingxi-harness/');
+          const content = await this.app.vault.adapter.read(legacyFile);
+          await this.app.vault.adapter.write(indexFile, content);
+          // 不删除旧文件，保留作备份
+        }
+      }
+
       const file = this.app.vault.getAbstractFileByPath(indexFile);
       if (file instanceof TFile) {
         const content = await this.app.vault.read(file);

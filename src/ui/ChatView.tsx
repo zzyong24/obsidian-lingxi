@@ -53,6 +53,11 @@ export default class ChatView extends ItemView {
         ragManager={this.plugin.ragManager}
         conversationManager={this.plugin.conversationManager}
         toolCallHandler={this.plugin.toolCallHandler}
+        memoryManager={this.plugin.memoryManager}
+        contextBuilder={this.plugin.contextBuilder}
+        compactionEngine={this.plugin.compactionEngine}
+        worklogManager={this.plugin.worklogManager}
+        contentFetcher={this.plugin.contentFetcher}
         onNewChat={() => {
           // 新建对话时的回调
         }}
@@ -62,6 +67,15 @@ export default class ChatView extends ItemView {
 
   updateView(): void {
     this.renderView();
+  }
+
+  /**
+   * 触发对话压缩（由 main.ts 的 /compact 命令调用）
+   */
+  triggerCompact(): void {
+    // 通过自定义事件通知 Chat 组件
+    const event = new CustomEvent('lingxi-compact');
+    this.containerEl.dispatchEvent(event);
   }
 
   onClose(): Promise<void> {

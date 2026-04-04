@@ -18,8 +18,10 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
-/** 持久化存储的文件名 */
-const STORAGE_FILE = 'lingxi-conversations.json';
+/** 新路径：Vault 内 lingxi-harness/ 目录 */
+const STORAGE_FILE = 'lingxi-harness/conversations.json';
+/** 旧路径（.obsidian/plugins/lingxi/lingxi-conversations.json）*/
+const LEGACY_STORAGE_FILE = 'lingxi-conversations.json';
 
 /** 最大保存对话数 */
 const MAX_PERSISTED_CONVERSATIONS = 20;
@@ -39,12 +41,19 @@ export class ConversationManager {
   }
 
   /**
-   * 获取插件数据目录路径
+   * 获取插件数据目录路径（旧路径，仅用于迁移）
    */
   private getPluginDir(): string {
     const configDir = this.app!.vault.configDir;
     const pluginId = this.manifest?.id || 'lingxi';
     return `${configDir}/plugins/${pluginId}`;
+  }
+
+  /**
+   * 获取对话历史存储路径（新路径：lingxi-harness/conversations.json）
+   */
+  private getStorageFilePath(): string {
+    return STORAGE_FILE;
   }
 
   /**
@@ -188,6 +197,41 @@ export class ConversationManager {
     return this.conversation.messages.length;
   }
 
+  /**
+   * 提取最近 N 天内的对话摘要文本（供周报/反思任务使用）
+   * 每段对话只保留 user/assistant 消息，单条截断 200 字，防止过长
+   */
+  getRecentConversationsSummary(days: number = 7): string {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const recent = this.conversations.filter(c => {
+      const t = c.updatedAt ? new Date(c.updatedAt).getTime() : 0;
+      return t >= cutoff && c.messages.length > 0;
+    });
+
+    if (recent.length === 0) return '';
+
+    const parts: string[] = [];
+    for (const conv of recent) {
+      const title = conv.title || '无标题对话';
+      const date = conv.updatedAt?.slice(0, 10) ?? '';
+      const lines = conv.messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => {
+          const role = m.role === 'user' ? '我' : 'AI';
+          const text = typeof m.content === 'string'
+            ? m.content
+            : m.content.map((p: { text?: string }) => p.text || '').join('');
+          const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text;
+          return `  ${role}: ${truncated}`;
+        });
+      if (lines.length === 0) continue;
+      parts.push(`### ${date} · ${title}\n${lines.join('\n')}`);
+    }
+
+    return parts.join('\n\n');
+  }
+
   // ========== 持久化 ==========
 
   /**
@@ -252,16 +296,33 @@ export class ConversationManager {
   }
 
   /**
-   * 从磁盘加载对话历史
+   * 从磁盘加载对话历史（优先新路径，自动迁移旧路径）
    */
   private async loadFromDisk(): Promise<void> {
     if (!this.app) return;
 
     try {
-      const pluginDir = this.getPluginDir();
-      const filePath = `${pluginDir}/${STORAGE_FILE}`;
-      const fileExists = await this.app.vault.adapter.exists(filePath);
+      const filePath = this.getStorageFilePath();
 
+      // 确保 lingxi-harness 目录存在
+      const dir = 'lingxi-harness';
+      if (!(await this.app.vault.adapter.exists(dir))) {
+        await this.app.vault.adapter.mkdir(dir);
+      }
+
+      // 旧路径迁移：.obsidian/plugins/lingxi/lingxi-conversations.json → 新路径
+      if (!(await this.app.vault.adapter.exists(filePath))) {
+        const pluginDir = this.getPluginDir();
+        const legacyPath = `${pluginDir}/${LEGACY_STORAGE_FILE}`;
+        if (await this.app.vault.adapter.exists(legacyPath)) {
+          console.debug('[Lingxi] 迁移对话历史到 lingxi-harness/');
+          const raw = await this.app.vault.adapter.read(legacyPath);
+          await this.app.vault.adapter.write(filePath, raw);
+          // 保留旧文件作备份，不删除
+        }
+      }
+
+      const fileExists = await this.app.vault.adapter.exists(filePath);
       if (!fileExists) {
         console.debug('[Lingxi] 无历史对话记录');
         return;
@@ -272,7 +333,6 @@ export class ConversationManager {
 
       if (data.conversations && data.conversations.length > 0) {
         this.conversations = data.conversations;
-        // 恢复激活的对话
         const active = this.conversations.find(c => c.id === data.activeConversationId);
         if (active) {
           this.conversation = active;
@@ -293,12 +353,10 @@ export class ConversationManager {
     if (!this.app) return;
 
     try {
-      const pluginDir = this.getPluginDir();
-
       // 确保目录存在
-      const dirExists = await this.app.vault.adapter.exists(pluginDir);
-      if (!dirExists) {
-        await this.app.vault.adapter.mkdir(pluginDir);
+      const dir = 'lingxi-harness';
+      if (!(await this.app.vault.adapter.exists(dir))) {
+        await this.app.vault.adapter.mkdir(dir);
       }
 
       const data: PersistedData = {
@@ -306,8 +364,7 @@ export class ConversationManager {
         activeConversationId: this.conversation.id,
       };
 
-      const filePath = `${pluginDir}/${STORAGE_FILE}`;
-      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+      await this.app.vault.adapter.write(this.getStorageFilePath(), JSON.stringify(data, null, 2));
     } catch (error) {
       console.error('[Lingxi] 保存对话历史失败:', error);
     }
